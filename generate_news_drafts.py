@@ -34,7 +34,7 @@ def load_json(path: Path) -> Any:
 
 
 def fetch_news(limit_per_feed: int = 8) -> List[Dict[str, str]]:
-    sources = load_json(ROOT / "config" / "news_sources.json")
+    sources = load_json(ROOT / "news_sources.json")
     items: List[Dict[str, str]] = []
     for group, feeds in sources.items():
         for src in feeds:
@@ -57,7 +57,7 @@ def fetch_news(limit_per_feed: int = 8) -> List[Dict[str, str]]:
 
 
 def score_news(items: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-    rules = load_json(ROOT / "config" / "impact_rules.json")
+    rules = load_json(ROOT / "impact_rules.json")
     scored = []
     for item in items:
         text = (item["title"] + " " + item.get("summary", "")).lower()
