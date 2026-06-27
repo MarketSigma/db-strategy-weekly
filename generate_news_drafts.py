@@ -78,17 +78,48 @@ def fetch_metrics(bank: str) -> Dict[str, Any]:
         from supabase import create_client
     except Exception:
         return {}
-    url, key = os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY")
+
+    url = os.getenv("DB_STRATEGY_WEEKLY_SUPABASE_URL") or os.getenv("SUPABASE_URL")
+    key = os.getenv("DB_STRATEGY_WEEKLY_SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
+
     if not url or not key:
         return {}
+
     sb = create_client(url, key)
-    rows = sb.table("bank_metric_latest_verified").select("*").eq("bank_name", bank).execute().data or []
-    peers = sb.table("bank_metric_latest_verified").select("*").neq("bank_name", bank).execute().data or []
+
+    rows = (
+        sb.table("bank_metric_values")
+        .select("*")
+        .eq("bank_name", bank)
+        .eq("is_verified", True)
+        .order("period_end", desc=True)
+        .execute()
+        .data
+        or []
+    )
+
+    peers = (
+        sb.table("bank_metric_values")
+        .select("*")
+        .neq("bank_name", bank)
+        .eq("is_verified", True)
+        .order("period_end", desc=True)
+        .execute()
+        .data
+        or []
+    )
+
     metrics = {r["metric_code"]: r for r in rows}
+
     peer_metrics: Dict[str, Dict[str, Any]] = {}
     for r in peers:
         peer_metrics.setdefault(r["bank_name"], {})[r["metric_code"]] = r
-    return {"primary_bank": bank, "metrics": metrics, "peers": peer_metrics}
+
+    return {
+        "primary_bank": bank,
+        "metrics": metrics,
+        "peers": peer_metrics
+    }
 
 
 def fallback_drafts(scored: List[Dict[str, Any]], metric_pack: Dict[str, Any], bank: str) -> List[Dict[str, Any]]:
