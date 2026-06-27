@@ -3,7 +3,7 @@ name: DB Strategy Weekly - Draft Only
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 5 * * 0"   # Sunday 08:00 Qatar time
+    - cron: "0 5 * * 0"
 
 jobs:
   generate-draft:
