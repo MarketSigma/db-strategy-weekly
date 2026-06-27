@@ -1,20 +1,27 @@
 {
-  "high_impact_keywords": [
-    "interest rates",
-    "inflation",
-    "oil prices",
-    "energy",
-    "geopolitics",
-    "sanctions",
-    "banking",
-    "liquidity",
-    "credit",
-    "gdp",
-    "recession",
-    "fed",
-    "ecb",
-    "china",
-    "gcc",
-    "qatar"
-  ]
+  "rates": {
+    "angle": "Rate cycle",
+    "keywords": ["fed", "rate cut", "interest rate", "central bank", "policy rate", "yield"],
+    "metrics": ["nim_pct", "net_loans", "customer_deposits", "net_profit"]
+  },
+  "liquidity": {
+    "angle": "Liquidity and funding",
+    "keywords": ["liquidity", "deposit", "funding", "lending", "credit growth"],
+    "metrics": ["customer_deposits", "net_loans", "loan_deposit_ratio_pct", "lcr_pct"]
+  },
+  "asset_quality": {
+    "angle": "Asset quality",
+    "keywords": ["default", "npl", "credit risk", "provision", "impairment"],
+    "metrics": ["npl_ratio_pct", "coverage_ratio_pct", "cost_of_risk_bp"]
+  },
+  "capital": {
+    "angle": "Capital strength",
+    "keywords": ["capital", "basel", "cet1", "capital adequacy", "regulatory capital"],
+    "metrics": ["cet1_pct", "car_pct", "total_equity"]
+  },
+  "growth": {
+    "angle": "Growth opportunity",
+    "keywords": ["qatar", "project", "infrastructure", "lng", "trade finance", "corporate lending"],
+    "metrics": ["net_loans", "operating_income", "net_profit", "roa_pct", "roe_pct"]
+  }
 }
