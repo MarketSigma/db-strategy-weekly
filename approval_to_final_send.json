@@ -1,0 +1,22 @@
+{
+  "rate_cut": {
+    "keywords": ["fed cut", "interest rate cut", "easing", "lower rates", "central bank cuts"],
+    "metrics": ["nim_pct", "net_loans", "customer_deposits", "net_gap_12m", "nii_at_risk_50bp"],
+    "angle": "NIM and NII sensitivity"
+  },
+  "liquidity": {
+    "keywords": ["liquidity", "deposits", "funding", "qcb", "money market"],
+    "metrics": ["customer_deposits", "lcr_pct", "net_loans", "total_assets"],
+    "angle": "funding, deposit pricing and liquidity"
+  },
+  "credit_risk": {
+    "keywords": ["defaults", "npl", "credit risk", "real estate", "construction", "sme stress"],
+    "metrics": ["npl_ratio_pct", "net_loans", "cost_income_pct", "car_pct", "cet1_pct"],
+    "angle": "asset quality and capital buffer"
+  },
+  "growth": {
+    "keywords": ["lng", "expansion", "project finance", "corporate lending", "infrastructure", "trade finance"],
+    "metrics": ["net_loans", "investment_portfolio", "net_profit", "roa_pct"],
+    "angle": "corporate growth opportunity"
+  }
+}

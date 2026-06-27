@@ -1,0 +1,13 @@
+{
+  "global": [
+    {"name": "Reuters Business", "rss": "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best"},
+    {"name": "CNBC World Economy", "rss": "https://www.cnbc.com/id/20910258/device/rss/rss.html"},
+    {"name": "Al Jazeera Economy", "rss": "https://www.aljazeera.com/xml/rss/all.xml"},
+    {"name": "IMF News", "rss": "https://www.imf.org/en/News/RSS"},
+    {"name": "BIS Speeches", "rss": "https://www.bis.org/list/speeches/index.rss"}
+  ],
+  "qatar_gcc": [
+    {"name": "QCB", "rss": "https://www.qcb.gov.qa/en/News/Pages/default.aspx"},
+    {"name": "Gulf Times Qatar", "rss": "https://www.gulf-times.com/rss/qatar"}
+  ]
+}

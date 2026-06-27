@@ -1,0 +1,32 @@
+{
+  "name": "DB Strategy Weekly - Draft Approval Request",
+  "safe_separation_note": "Separate scenario. Do not attach to daily dashboard scenario, daily dashboard repo, or market_indices_history table.",
+  "schedule": "Every Sunday 06:00 Asia/Qatar",
+  "modules": [
+    {
+      "step": 1,
+      "module": "Scheduler",
+      "settings": {"frequency": "weekly", "day": "Sunday", "time": "06:00", "timezone": "Asia/Qatar"}
+    },
+    {
+      "step": 2,
+      "module": "GitHub - Create workflow dispatch event",
+      "settings": {
+        "repo": "db-strategy-weekly",
+        "workflow": "weekly_draft.yml",
+        "branch": "main"
+      }
+    },
+    {
+      "step": 3,
+      "module": "Email - Send an email to approver only",
+      "settings": {
+        "to": "YOUR_EMAIL_ONLY",
+        "subject": "Approval Required — DB Strategy Weekly",
+        "body": "Drafts have been generated. Review the draft email/artifact. Approve only when ready.",
+        "approval_button_url": "MAKE_APPROVAL_WEBHOOK_URL?decision=approve",
+        "reject_button_url": "MAKE_APPROVAL_WEBHOOK_URL?decision=reject"
+      }
+    }
+  ]
+}

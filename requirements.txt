@@ -1,0 +1,19 @@
+# Supabase for WEEKLY STRATEGY only — do not reuse daily dashboard variables
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-service-role-or-anon-key
+
+# Optional LLM refinement
+OPENAI_API_KEY=your-openai-key
+OPENAI_MODEL=gpt-4.1-mini
+
+# SMTP draft route — your email only
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=your-email@domain.com
+SMTP_PASS=your-password-or-app-password
+EMAIL_FROM=your-email@domain.com
+EMAIL_TO=your-email@domain.com
+EMAIL_SUBJECT=Approval Required — DB Strategy Weekly
+
+# Final recipient list should live in Make or GitHub secrets separately
+FINAL_EMAIL_TO=recipient1@domain.com,recipient2@domain.com
