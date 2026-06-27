@@ -1,12 +1,13 @@
 name: DB Strategy Weekly - Draft Only
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "0 5 * * 0"
+    # Sunday 06:00 Qatar = 03:00 UTC
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
 
 jobs:
-  generate-draft:
+  draft:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,13 +22,28 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate weekly draft
+      - name: Generate 3 draft topics from news + Supabase metrics
         env:
-          DB_STRATEGY_WEEKLY_SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
-          DB_STRATEGY_WEEKLY_SUPABASE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
-          DB_STRATEGY_WEEKLY_OPENAI_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.DB_STRATEGY_WEEKLY_OPENAI_MODEL || 'gpt-4.1-mini' }}
+        run: |
+          python generate_news_drafts.py --out drafts.html --json-out drafts.json --bank "Doha Bank"
+
+      - name: Email draft to approver only
+        env:
           DB_STRATEGY_WEEKLY_RESEND_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_RESEND_API_KEY }}
           DB_STRATEGY_WEEKLY_EMAIL_FROM: ${{ secrets.DB_STRATEGY_WEEKLY_EMAIL_FROM }}
           DB_STRATEGY_WEEKLY_APPROVER_EMAIL: ${{ secrets.DB_STRATEGY_WEEKLY_APPROVER_EMAIL }}
+          DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: Approval Required — DB Strategy Weekly
         run: |
-          python generate_news_drafts.py
+          python send_email.py drafts.html
+
+      - name: Upload draft artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-strategy-weekly-drafts
+          path: |
+            drafts.html
+            drafts.json
