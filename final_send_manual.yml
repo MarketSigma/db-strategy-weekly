@@ -3,28 +3,42 @@ name: DB Strategy Weekly - Final Send Manual
 on:
   workflow_dispatch:
     inputs:
-      html_file:
-        description: 'HTML file to send. Default out.html. Upload/commit approved final HTML first.'
+      topic_id:
+        description: "Approved topic id"
         required: true
-        default: 'out.html'
+        default: "1"
 
 jobs:
   final-send:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Send approved final article
+
+      - name: Generate final article
         env:
-          SMTP_HOST: ${{ secrets.DB_STRATEGY_WEEKLY_SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.DB_STRATEGY_WEEKLY_SMTP_PORT }}
-          SMTP_USER: ${{ secrets.DB_STRATEGY_WEEKLY_SMTP_USER }}
-          SMTP_PASS: ${{ secrets.DB_STRATEGY_WEEKLY_SMTP_PASS }}
-          EMAIL_FROM: ${{ secrets.DB_STRATEGY_WEEKLY_EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO }}
-          EMAIL_SUBJECT: DB Strategy Weekly
-        run: python send_email.py "${{ github.event.inputs.html_file }}"
+          TOPIC_ID: ${{ github.event.inputs.topic_id }}
+
+          SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
+
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: sonnet-4-6
+        run: |
+          python generate_weekly.py --topic-id "${{ github.event.inputs.topic_id }}" --drafts-json drafts.json --out strategy_weekly_final.html --bank "Doha Bank"
+
+      - name: Send final article
+        env:
+          DB_STRATEGY_WEEKLY_RESEND_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_RESEND_API_KEY }}
+          DB_STRATEGY_WEEKLY_EMAIL_FROM: ${{ secrets.DB_STRATEGY_WEEKLY_EMAIL_FROM }}
+          DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO: ${{ secrets.DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO }}
+          DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: DB Strategy Weekly
+        run: |
+          python send_email.py strategy_weekly_final.html
