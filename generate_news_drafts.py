@@ -19,7 +19,7 @@ NEWS_SOURCES = [
 
 def ask_claude(prompt, max_tokens=4000):
     response = client.messages.create(
-        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
         max_tokens=max_tokens,
         temperature=0.35,
         messages=[{"role": "user", "content": prompt}]
