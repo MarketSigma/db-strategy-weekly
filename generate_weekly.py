@@ -1,8 +1,12 @@
-import os, json, datetime, html
+import os
+import json
+import html
+import argparse
+import datetime
+import anthropic
 from supabase import create_client
-from openai import OpenAI
 
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 supabase = create_client(
     os.environ["SUPABASE_URL"],
@@ -11,10 +15,17 @@ supabase = create_client(
 
 TODAY = datetime.date.today().strftime("%d %B %Y")
 
-def get_selected_topic():
-    topic_id = os.getenv("TOPIC_ID", "1")
+def ask_claude(prompt, max_tokens=5000):
+    response = client.messages.create(
+        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+        max_tokens=max_tokens,
+        temperature=0.35,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text.strip()
 
-    with open("draft_topics.json", "r", encoding="utf-8") as f:
+def get_selected_topic(json_file, topic_id):
+    with open(json_file, "r", encoding="utf-8") as f:
         topics = json.load(f)
 
     for t in topics:
@@ -23,89 +34,92 @@ def get_selected_topic():
 
     return topics[0]
 
-def get_doha_bank_metrics():
+def get_doha_bank_metrics(bank_name):
     result = (
         supabase.table("bank_metric_values")
         .select("*")
-        .eq("bank_name", "Doha Bank")
+        .eq("bank_name", bank_name)
         .order("period_end", desc=True)
-        .limit(20)
+        .limit(30)
         .execute()
     )
 
     return result.data or []
 
-def ai_write_article(topic, metrics):
+def ai_write_article(topic, metrics, bank_name):
     prompt = f"""
 You are DB Strategy AI Analyst.
 
-Write a polished weekly executive article for Doha Bank.
+Write a polished weekly executive strategy article for {bank_name}.
 
-Use this exact structure:
-1. article_title
-2. source_summary
-3. development
-4. wider_lens
-5. doha_bank_impact
-6. impact_bullets: exactly 3 bullets
-7. impact_table: 3 rows with line_item, current, implication
-8. strategic_options: exactly 3 options
-9. executive_takeaway
+Use this exact JSON structure:
+{{
+  "article_title": "...",
+  "source_summary": "...",
+  "development": "...",
+  "wider_lens": "...",
+  "doha_bank_impact": "...",
+  "impact_bullets": ["...", "...", "..."],
+  "impact_table": [
+    {{"line_item": "...", "current": "...", "implication": "..."}},
+    {{"line_item": "...", "current": "...", "implication": "..."}},
+    {{"line_item": "...", "current": "...", "implication": "..."}}
+  ],
+  "strategic_options": ["...", "...", "..."],
+  "executive_takeaway": "..."
+}}
 
-Style:
-- Executive, concise, strategy-team quality.
-- Do not say "not available".
-- If a metric is missing, avoid mentioning it.
-- Use Doha Bank specific metrics only when present in the provided data.
-- No hallucinated numbers.
-- Convert news into opportunity/risk for Doha Bank.
+Rules:
 - Output JSON only.
+- No markdown.
+- Do not say "not available".
+- Do not invent financial numbers.
+- Only use Doha Bank metrics if they exist in the Supabase data below.
+- If a metric is missing, avoid mentioning it.
+- Make the article strategic, executive, and practical.
+- Focus on opportunity or risk for Doha Bank.
+- Keep each section concise.
 
 Selected topic:
 {json.dumps(topic, ensure_ascii=False)}
 
-Available Doha Bank metrics from Supabase:
+Available Doha Bank metrics:
 {json.dumps(metrics, ensure_ascii=False)}
 """
 
-    response = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.35
-    )
-
-    return json.loads(response.choices[0].message.content)
+    text = ask_claude(prompt)
+    return json.loads(text)
 
 def build_final_email(topic, article):
     bullets = ""
     for b in article["impact_bullets"]:
         bullets += f"""
-        <tr>
-          <td style="padding:0 0 10px 0; font-size:16px; line-height:1.6; color:#2c3e54;">
-            <strong style="color:#002b5c;">&#9642;&nbsp;</strong>{html.escape(b)}
-          </td>
-        </tr>
-        """
+<tr>
+<td style="padding:0 0 10px 0; font-size:16px; line-height:1.6; color:#2c3e54;">
+<strong style="color:#002b5c;">&#9642;&nbsp;</strong>{html.escape(b)}
+</td>
+</tr>
+"""
 
     rows = ""
     for r in article["impact_table"]:
         rows += f"""
-        <tr>
-          <td style="padding:9px 8px; font-size:14px; color:#2c3e54; border-bottom:1px solid #eef2f6;">{html.escape(r['line_item'])}</td>
-          <td style="padding:9px 8px; text-align:right; font-family:Georgia,serif; font-size:15px; color:#7a8aa0; border-bottom:1px solid #eef2f6;">{html.escape(r['current'])}</td>
-          <td style="padding:9px 8px; text-align:right; font-family:Georgia,serif; font-size:15px; font-weight:bold; color:#002b5c; border-bottom:1px solid #eef2f6;">{html.escape(r['implication'])}</td>
-        </tr>
-        """
+<tr>
+<td style="padding:9px 8px; font-size:14px; color:#2c3e54; border-bottom:1px solid #eef2f6;">{html.escape(r["line_item"])}</td>
+<td style="padding:9px 8px; text-align:right; font-family:Georgia,serif; font-size:15px; color:#7a8aa0; border-bottom:1px solid #eef2f6;">{html.escape(r["current"])}</td>
+<td style="padding:9px 8px; text-align:right; font-family:Georgia,serif; font-size:15px; font-weight:bold; color:#002b5c; border-bottom:1px solid #eef2f6;">{html.escape(r["implication"])}</td>
+</tr>
+"""
 
     options = ""
     for i, o in enumerate(article["strategic_options"], 1):
         options += f"""
-        <tr>
-          <td style="padding:0 0 10px 0; font-size:16px; line-height:1.6; color:#2c3e54;">
-            <strong style="color:#002b5c;">{i}&nbsp;&nbsp;</strong>{html.escape(o)}
-          </td>
-        </tr>
-        """
+<tr>
+<td style="padding:0 0 10px 0; font-size:16px; line-height:1.6; color:#2c3e54;">
+<strong style="color:#002b5c;">{i}&nbsp;&nbsp;</strong>{html.escape(o)}
+</td>
+</tr>
+"""
 
     return f"""
 <!DOCTYPE html>
@@ -172,6 +186,7 @@ A weekly read identifying key opportunities and risks for Doha Bank
 
 <tr>
 <td style="padding:22px 40px 0 40px;">
+
 <p style="margin:0 0 16px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:#0072ce;">DB Strategy</p>
 
 <h2 style="margin:0 0 16px 0; font-family:Georgia,serif; font-size:22px; line-height:1.3; font-weight:normal; color:#002b5c;">
@@ -209,6 +224,7 @@ Impact on the books
 <table width="100%" cellpadding="0" cellspacing="0">
 {options}
 </table>
+
 </td>
 </tr>
 
@@ -238,13 +254,20 @@ The analysis expressed is that of the DB Strategy AI Analyst. Review before exte
 """
 
 def main():
-    topic = get_selected_topic()
-    metrics = get_doha_bank_metrics()
-    article = ai_write_article(topic, metrics)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--topic-id", default=os.getenv("TOPIC_ID", "1"))
+    parser.add_argument("--drafts-json", default="drafts.json")
+    parser.add_argument("--out", default="strategy_weekly_final.html")
+    parser.add_argument("--bank", default="Doha Bank")
+    args = parser.parse_args()
+
+    topic = get_selected_topic(args.drafts_json, args.topic_id)
+    metrics = get_doha_bank_metrics(args.bank)
+    article = ai_write_article(topic, metrics, args.bank)
 
     html_body = build_final_email(topic, article)
 
-    with open("strategy_weekly_final.html", "w", encoding="utf-8") as f:
+    with open(args.out, "w", encoding="utf-8") as f:
         f.write(html_body)
 
 if __name__ == "__main__":
