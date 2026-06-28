@@ -1,239 +1,151 @@
-    #!/usr/bin/env python3
-"""
-Generate 3 weekly strategy article drafts by combining latest news with Supabase bank metrics.
-
-Usage:
-  python generate_news_drafts.py --out drafts.html --bank "Doha Bank"
-
-Environment:
-  SUPABASE_URL
-  SUPABASE_KEY
-  OPENAI_API_KEY                 optional but recommended
-  OPENAI_MODEL                   optional, default gpt-4.1-mini
-
-This script is intentionally separate from the daily dashboard.
-It reads only bank_metric_values / related views and writes only local HTML/JSON files.
-"""
-import argparse, datetime as dt, html, json, os, re
-from pathlib import Path
-from typing import Dict, List, Any
-
+import os, json, datetime, textwrap, html
 import feedparser
+from openai import OpenAI
 
-BLUE = "#0072ce"
-NAVY = "#002b5c"
-SLATE = "#2c3e54"
-MUTED = "#7a8aa0"
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-ROOT = Path(__file__).resolve().parent
+TODAY = datetime.date.today().strftime("%d %B %Y")
 
+NEWS_SOURCES = [
+    "https://feeds.reuters.com/reuters/businessNews",
+    "https://feeds.reuters.com/reuters/worldNews",
+    "https://www.aljazeera.com/xml/rss/all.xml",
+    "https://www.cnbc.com/id/100727362/device/rss/rss.html",
+]
 
-def load_json(path: Path) -> Any:
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+def fetch_news(max_items=25):
+    items = []
+    for url in NEWS_SOURCES:
+        feed = feedparser.parse(url)
+        for entry in feed.entries[:8]:
+            items.append({
+                "title": entry.get("title", ""),
+                "summary": entry.get("summary", ""),
+                "link": entry.get("link", ""),
+                "source": feed.feed.get("title", "News source")
+            })
+    return items[:max_items]
 
+def ai_select_topics(news_items):
+    prompt = f"""
+You are DB Strategy AI Analyst.
 
-def fetch_news(limit_per_feed: int = 8) -> List[Dict[str, str]]:
-    sources = load_json(ROOT / "news_sources.json")
-    items: List[Dict[str, str]] = []
-    for group, feeds in sources.items():
-        for src in feeds:
-            parsed = feedparser.parse(src["rss"])
-            for e in parsed.entries[:limit_per_feed]:
-                title = getattr(e, "title", "").strip()
-                summary = re.sub("<.*?>", "", getattr(e, "summary", "")).strip()
-                link = getattr(e, "link", "")
-                published = getattr(e, "published", "") or getattr(e, "updated", "")
-                if title:
-                    items.append({
-                        "group": group,
-                        "source": src["name"],
-                        "title": title,
-                        "summary": summary[:500],
-                        "url": link,
-                        "published": published,
-                    })
-    return items
+From the news list below, select 3 weekly article topics that may create opportunity or risk for Doha Bank.
 
+Focus on:
+- Qatar economy
+- GCC banking
+- interest rates
+- liquidity
+- corporate banking
+- trade finance
+- energy / LNG
+- sovereign / infrastructure activity
+- geopolitics affecting business flows
 
-def score_news(items: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-    rules = load_json(ROOT / "impact_rules.json")
-    scored = []
-    for item in items:
-        text = (item["title"] + " " + item.get("summary", "")).lower()
-        matches = []
-        score = 0
-        for code, rule in rules.items():
-            hit_count = sum(1 for k in rule["keywords"] if k in text)
-            if hit_count:
-                score += hit_count * 10
-                matches.append({"impact_code": code, **rule})
-        if matches:
-            scored.append({**item, "score": score, "matches": matches})
-    return sorted(scored, key=lambda x: x["score"], reverse=True)
+Return JSON only in this structure:
+[
+  {{
+    "topic_id": "1",
+    "title": "...",
+    "source_title": "...",
+    "source_name": "...",
+    "source_url": "...",
+    "why_it_matters": "...",
+    "potential_doha_bank_angle": "..."
+  }}
+]
 
+News:
+{json.dumps(news_items, ensure_ascii=False)}
+"""
 
-def fetch_metrics(bank: str) -> Dict[str, Any]:
-    try:
-        from supabase import create_client
-    except Exception:
-        return {}
-
-    url = os.getenv("DB_STRATEGY_WEEKLY_SUPABASE_URL") or os.getenv("SUPABASE_URL")
-    key = os.getenv("DB_STRATEGY_WEEKLY_SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
-
-    if not url or not key:
-        return {}
-
-    sb = create_client(url, key)
-
-    rows = (
-        sb.table("bank_metric_values")
-        .select("*")
-        .eq("bank_name", bank)
-        .eq("is_verified", True)
-        .order("period_end", desc=True)
-        .execute()
-        .data
-        or []
+    response = client.chat.completions.create(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.35
     )
 
-    peers = (
-        sb.table("bank_metric_values")
-        .select("*")
-        .neq("bank_name", bank)
-        .eq("is_verified", True)
-        .order("period_end", desc=True)
-        .execute()
-        .data
-        or []
-    )
+    return json.loads(response.choices[0].message.content)
 
-    metrics = {r["metric_code"]: r for r in rows}
+def build_approval_email(topics):
+    cards = ""
 
-    peer_metrics: Dict[str, Dict[str, Any]] = {}
-    for r in peers:
-        peer_metrics.setdefault(r["bank_name"], {})[r["metric_code"]] = r
+    for t in topics:
+        cards += f"""
+        <tr>
+          <td style="padding:26px 40px; border-top:1px solid #e2e8f0;">
+            <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:#0072ce; font-weight:bold;">Topic {html.escape(t['topic_id'])}</p>
 
-    return {
-        "primary_bank": bank,
-        "metrics": metrics,
-        "peers": peer_metrics
-    }
+            <h2 style="margin:0 0 10px 0; font-family:Georgia,serif; font-size:24px; line-height:1.3; font-weight:normal; color:#002b5c;">
+              {html.escape(t['title'])}
+            </h2>
 
+            <p style="margin:0 0 10px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#7a8aa0;">
+              Source: {html.escape(t['source_title'])}
+            </p>
 
-def fallback_drafts(scored: List[Dict[str, Any]], metric_pack: Dict[str, Any], bank: str) -> List[Dict[str, Any]]:
-    drafts = []
-    top = scored[:3] or [{"title": "Weekly banking sector development", "summary": "No high-confidence RSS match was found.", "source": "System", "url": "", "published": "", "matches": [{"angle": "strategic implication", "metrics": []}]}]
-    metrics = metric_pack.get("metrics", {})
-    def val(code):
-        r = metrics.get(code) or {}
-        v = r.get("value")
-        unit = r.get("unit", "")
-        if v is None:
-            return "not yet available"
-        if unit == "percent":
-            return f"{v}%"
-        if unit == "QAR million" and abs(float(v)) >= 1000:
-            return f"QAR {float(v)/1000:.1f}bn"
-        if unit == "QAR million":
-            return f"QAR {float(v):.0f}m"
-        return f"{v} {unit}".strip()
-    for i, n in enumerate(top, 1):
-        match = n["matches"][0]
-        drafts.append({
-            "rank": i,
-            "headline": f"{match.get('angle','Market development')}: what it means for {bank}",
-            "source_title": n["title"],
-            "source": n["source"],
-            "url": n.get("url", ""),
-            "development": n.get("summary") or n["title"],
-            "bank_read": f"For {bank}, this should be read against net loans of {val('net_loans')}, deposits of {val('customer_deposits')}, NIM of {val('nim_pct')}, CET1 of {val('cet1_pct')} and CAR of {val('car_pct')}.",
-            "recommendation": "Use this as a management discussion draft. Replace any unverified metrics before final approval.",
-            "metrics_used": match.get("metrics", [])
-        })
-    return drafts
+            <p style="margin:0 0 14px 0; font-size:16px; line-height:1.6; color:#2c3e54;">
+              <strong style="color:#002b5c;">Why it matters:</strong> {html.escape(t['why_it_matters'])}
+            </p>
 
+            <p style="margin:0 0 18px 0; font-size:16px; line-height:1.6; color:#2c3e54;">
+              <strong style="color:#002b5c;">Doha Bank angle:</strong> {html.escape(t['potential_doha_bank_angle'])}
+            </p>
 
-def llm_refine(drafts: List[Dict[str, Any]], metric_pack: Dict[str, Any], bank: str) -> List[Dict[str, Any]]:
-    if not os.getenv("OPENAI_API_KEY"):
-        return drafts
-    try:
-        from openai import OpenAI
-        client = OpenAI()
-        prompt = {
-            "instruction": "Rewrite these into concise executive weekly strategy article drafts. Return valid JSON list only. Each draft must include headline, why_now, doha_bank_impact, strategic_options, final_reflection. Do not invent figures; only use provided metric values.",
-            "bank": bank,
-            "drafts": drafts,
-            "metrics": metric_pack,
-        }
-        resp = client.responses.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-            input=json.dumps(prompt, default=str),
-        )
-        text = resp.output_text.strip()
-        return json.loads(text)
-    except Exception as e:
-        print(f"LLM refinement skipped: {e}")
-        return drafts
-
-
-def render_html(drafts: List[Dict[str, Any]], bank: str) -> str:
-    today = dt.date.today().strftime("%d %B %Y")
-    blocks = ""
-    for i, d in enumerate(drafts, 1):
-        opts = d.get("strategic_options")
-        if isinstance(opts, list):
-            opts_html = "".join(f"<li>{html.escape(str(x))}</li>" for x in opts)
-        else:
-            opts_html = f"<li>{html.escape(str(d.get('recommendation', opts or 'Review and approve before sending.')))}</li>"
-        blocks += f"""
-        <tr><td style="padding:22px 34px; border-top:1px solid #e2e8f0;">
-          <p style="margin:0 0 6px 0; font-family:Arial; font-size:11px; letter-spacing:1.5px; color:{BLUE}; text-transform:uppercase; font-weight:bold;">Draft {i}</p>
-          <h2 style="margin:0 0 10px 0; color:{NAVY}; font-family:Georgia; font-weight:normal; font-size:24px; line-height:1.25;">{html.escape(str(d.get('headline','Untitled')))}</h2>
-          <p style="margin:0 0 12px 0; color:{MUTED}; font-family:Arial; font-size:12px;">Source: {html.escape(str(d.get('source_title', d.get('source',''))))}</p>
-          <p style="font-size:16px; line-height:1.6; color:{SLATE};"><strong>Why now:</strong> {html.escape(str(d.get('why_now', d.get('development',''))))}</p>
-          <p style="font-size:16px; line-height:1.6; color:{SLATE};"><strong>{html.escape(bank)} impact:</strong> {html.escape(str(d.get('doha_bank_impact', d.get('bank_read',''))))}</p>
-          <p style="font-size:16px; line-height:1.6; color:{SLATE};"><strong>Strategic options:</strong></p>
-          <ul style="font-size:16px; line-height:1.6; color:{SLATE};">{opts_html}</ul>
-          <p style="font-size:15px; line-height:1.6; color:{NAVY}; font-style:italic;">{html.escape(str(d.get('final_reflection', d.get('recommendation',''))))}</p>
-        </td></tr>
+            <a href="{os.environ['APPROVAL_WEBHOOK_URL']}?decision=approve&topic_id={html.escape(t['topic_id'])}"
+               style="display:inline-block; background-color:#0072ce; color:#ffffff; text-decoration:none; padding:10px 18px; border-radius:5px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:bold;">
+              Approve Topic {html.escape(t['topic_id'])}
+            </a>
+          </td>
+        </tr>
         """
-    return f"""<!DOCTYPE html><html><body style="margin:0;background:#eef2f6;font-family:Georgia;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:28px 12px;background:#eef2f6;"><tr><td align="center">
-    <table role="presentation" width="680" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:6px;overflow:hidden;max-width:680px;">
-      <tr><td style="height:4px;background:{NAVY};"></td></tr>
-      <tr><td style="padding:28px 34px;">
-        <p style="font-family:Arial;font-size:12px;letter-spacing:2px;color:{BLUE};font-weight:bold;text-transform:uppercase;margin:0;">Approval Required</p>
-        <h1 style="color:{NAVY};font-weight:normal;margin:12px 0 4px 0;">DB Strategy Weekly — Draft Topics</h1>
-        <p style="font-family:Arial;color:{MUTED};font-size:13px;margin:0;">{today} · Select one draft, amend if needed, then approve final send in Make.</p>
-      </td></tr>
-      {blocks}
-      <tr><td style="padding:18px 34px;border-top:1px solid #e2e8f0;"><p style="font-family:Arial;color:{MUTED};font-size:11px;line-height:1.5;margin:0;">Generated from latest RSS/news sources and verified Supabase metric values. Review before external distribution.</p></td></tr>
-    </table></td></tr></table></body></html>"""
 
+    return f"""
+<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:0; background-color:#eef2f6; font-family:Georgia,'Times New Roman',serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef2f6; padding:28px 12px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="width:600px; max-width:600px; background:#ffffff; border-radius:6px; overflow:hidden;">
+<tr><td style="height:4px; background:#002b5c;">&nbsp;</td></tr>
+
+<tr>
+<td style="padding:30px 40px 22px 40px;">
+  <p style="margin:0 0 12px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; letter-spacing:3px; color:#0072ce; font-weight:bold;">APPROVAL REQUIRED</p>
+  <h1 style="margin:0; font-family:Georgia,serif; font-size:30px; font-weight:normal; color:#002b5c;">DB Strategy Weekly — Topic Selection</h1>
+  <p style="margin:8px 0 0 0; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#7a8aa0;">{TODAY} · Select one topic. The full article will then be generated in the Fed-rate style.</p>
+</td>
+</tr>
+
+{cards}
+
+<tr>
+<td style="padding:18px 40px 26px 40px; border-top:1px solid #e2e8f0;">
+  <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#8a99ad;">
+    Generated from latest news sources. Review before external distribution.
+  </p>
+</td>
+</tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+"""
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--out", default="drafts.html")
-    p.add_argument("--json-out", default="drafts.json")
-    p.add_argument("--bank", default="Doha Bank")
-    args = p.parse_args()
-
     news = fetch_news()
-    scored = score_news(news)
-    metric_pack = fetch_metrics(args.bank)
-    drafts = fallback_drafts(scored, metric_pack, args.bank)
-    drafts = llm_refine(drafts, metric_pack, args.bank)
+    topics = ai_select_topics(news)
 
-    with open(args.json_out, "w", encoding="utf-8") as f:
-        json.dump(drafts, f, indent=2, ensure_ascii=False, default=str)
-    with open(args.out, "w", encoding="utf-8") as f:
-        f.write(render_html(drafts, args.bank))
-    print(f"Wrote {args.out} and {args.json_out}. Draft count: {len(drafts)}")
+    with open("draft_topics.json", "w", encoding="utf-8") as f:
+        json.dump(topics, f, ensure_ascii=False, indent=2)
 
+    html_body = build_approval_email(topics)
+
+    with open("weekly_draft_approval.html", "w", encoding="utf-8") as f:
+        f.write(html_body)
 
 if __name__ == "__main__":
     main()
-
-    
