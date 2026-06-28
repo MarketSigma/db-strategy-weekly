@@ -22,13 +22,23 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Download latest draft artifacts
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: weekly_draft.yml
+          name: db-strategy-weekly-drafts
+          path: .
+
+      - name: Confirm draft files exist
+        run: |
+          ls -la
+          cat drafts.json
+
       - name: Generate final article
         env:
           TOPIC_ID: ${{ github.event.inputs.topic_id }}
-
           SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
-
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: sonnet-4-6
         run: |
