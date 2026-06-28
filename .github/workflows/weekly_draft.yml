@@ -2,8 +2,7 @@ name: DB Strategy Weekly - Draft Only
 
 on:
   schedule:
-    # Sunday 06:00 Qatar = 03:00 UTC
-    - cron: "0 3 * * 0"
+    - cron: "0 3 * * 0" # Sunday 06:00 Qatar
   workflow_dispatch:
 
 jobs:
@@ -25,9 +24,12 @@ jobs:
       - name: Generate 3 draft topics from news + Supabase metrics
         env:
           SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.DB_STRATEGY_WEEKLY_OPENAI_MODEL || 'gpt-4.1-mini' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
+
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: claude-sonnet-4-20250514
+
+          APPROVAL_WEBHOOK_URL: ${{ secrets.APPROVAL_WEBHOOK_URL }}
         run: |
           python generate_news_drafts.py --out drafts.html --json-out drafts.json --bank "Doha Bank"
 
