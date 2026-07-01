@@ -11,17 +11,32 @@ client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 TODAY = datetime.date.today().strftime("%d %B %Y")
 
 NEWS_SOURCES = [
-    "https://www.aljazeera.com/xml/rss/all.xml",
-    "https://www.cnbc.com/id/100727362/device/rss/rss.html",
-    "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "https://www.cnbc.com/id/10001147/device/rss/rss.html",
+    "https://www.cnbc.com/id/10000664/device/rss/rss.html",
     "https://feeds.bbci.co.uk/news/business/rss.xml",
+    "https://www.aljazeera.com/xml/rss/all.xml",
+]
+
+BLOCKED_TERMS = [
+    "world cup", "football", "soccer", "sports", "match", "tournament",
+    "weather", "sky turns", "episode", "podcast", "celebrity", "movie",
+    "music", "travel", "recipe"
+]
+
+REQUIRED_TERMS = [
+    "bank", "banks", "banking", "rate", "rates", "fed", "central bank",
+    "inflation", "economy", "economic", "finance", "financial",
+    "market", "markets", "credit", "liquidity", "investment",
+    "trade", "oil", "gas", "lng", "energy", "qatar", "gcc", "gulf",
+    "saudi", "uae", "kuwait", "bahrain", "oman", "geopolitical",
+    "sovereign", "infrastructure"
 ]
 
 def ask_claude(prompt, max_tokens=4000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
-        temperature=0.25,
+        temperature=0.2,
         messages=[{"role": "user", "content": prompt}]
     )
     return response.content[0].text.strip()
@@ -40,16 +55,33 @@ def extract_json_array(text):
 
     return json.loads(text[start:end + 1])
 
+def is_relevant_news(title, summary):
+    combined = f"{title} {summary}".lower()
+
+    if any(term in combined for term in BLOCKED_TERMS):
+        return False
+
+    if not any(term in combined for term in REQUIRED_TERMS):
+        return False
+
+    return True
+
 def fetch_news(max_items=35):
     items = []
 
     for url in NEWS_SOURCES:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:10]:
+        for entry in feed.entries[:15]:
+            title = entry.get("title", "")
+            summary = entry.get("summary", "")
+
+            if not is_relevant_news(title, summary):
+                continue
+
             items.append({
-                "title": entry.get("title", ""),
-                "summary": entry.get("summary", ""),
+                "title": title,
+                "summary": summary,
                 "link": entry.get("link", ""),
                 "source": feed.feed.get("title", "News source"),
             })
@@ -57,40 +89,70 @@ def fetch_news(max_items=35):
     return items[:max_items]
 
 def fallback_topics(news_items):
-    selected = news_items[:3]
+    return [
+        {
+            "topic_id": "1",
+            "title": "Interest rate outlook and implications for Doha Bank margins",
+            "source_title": "Global interest rate and banking market developments",
+            "source_name": "Fallback Strategy Topic",
+            "source_url": "https://www.cnbc.com/finance/",
+            "why_it_matters": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
+            "potential_doha_bank_angle": "Assess deposit repricing, loan yield sensitivity, liquidity positioning and opportunities to protect margin."
+        },
+        {
+            "topic_id": "2",
+            "title": "GCC liquidity and corporate credit demand",
+            "source_title": "Regional liquidity and corporate banking conditions",
+            "source_name": "Fallback Strategy Topic",
+            "source_url": "https://www.cnbc.com/world/",
+            "why_it_matters": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
+            "potential_doha_bank_angle": "Assess corporate lending opportunities, deposit mobilisation, sector exposure and relationship banking priorities."
+        },
+        {
+            "topic_id": "3",
+            "title": "Energy market shifts and Qatar-linked business flows",
+            "source_title": "Energy market and LNG-related developments",
+            "source_name": "Fallback Strategy Topic",
+            "source_url": "https://www.aljazeera.com/economy/",
+            "why_it_matters": "Energy market movements affect Qatar’s fiscal position, project activity, trade flows and business confidence.",
+            "potential_doha_bank_angle": "Assess opportunities in project finance, trade finance, contractor banking and treasury solutions for energy-linked clients."
+        }
+    ]
 
-    topics = []
-    for i, item in enumerate(selected, 1):
-        topics.append({
-            "topic_id": str(i),
-            "title": item.get("title", f"Strategy topic {i}"),
-            "source_title": item.get("title", ""),
-            "source_name": item.get("source", "News source"),
-            "source_url": item.get("link", ""),
-            "why_it_matters": "This development may have strategic implications for regional markets, banking activity, liquidity, client demand, or risk appetite.",
-            "potential_doha_bank_angle": "Assess the potential impact on Doha Bank through corporate banking opportunities, funding conditions, asset quality, liquidity, or client sector exposure."
-        })
+def validate_topics(topics):
+    valid = []
 
-    return topics
+    for t in topics:
+        title = str(t.get("title", ""))
+        source_title = str(t.get("source_title", ""))
+        combined = f"{title} {source_title}".lower()
+
+        if any(term in combined for term in BLOCKED_TERMS):
+            continue
+
+        if not any(term in combined for term in REQUIRED_TERMS):
+            continue
+
+        valid.append(t)
+
+    return valid
 
 def ai_select_topics(news_items, bank_name):
+    if len(news_items) < 3:
+        print("WARNING: Not enough relevant news items. Using strategic fallback topics.")
+        return fallback_topics(news_items)
+
     prompt = f"""
 You are DB Strategy AI Analyst.
 
 Select exactly 3 strong weekly strategy article topics for {bank_name}.
 
-The topic must be based on the news provided and should relate to:
-- Qatar
-- GCC
-- banking
-- interest rates
-- liquidity
-- credit growth
-- trade finance
-- corporate banking
-- energy / LNG
-- geopolitics
-- sovereign and infrastructure spending
+Strict rules:
+- Topics must be relevant to Doha Bank.
+- Do not select sports, entertainment, weather, lifestyle, podcasts, or generic human-interest stories.
+- Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, or trade-finance relevance.
+- Each topic must explain a specific opportunity or risk for Doha Bank.
+- If the available news is weak, prefer macro/banking/energy interpretation rather than random stories.
 
 Return only a valid JSON array.
 Do not include markdown.
@@ -129,21 +191,23 @@ Required structure:
   }}
 ]
 
-News:
+Relevant news only:
 {json.dumps(news_items, ensure_ascii=False)}
 """
 
     try:
         text = ask_claude(prompt)
         topics = extract_json_array(text)
+        topics = validate_topics(topics)
 
-        if not isinstance(topics, list) or len(topics) < 1:
+        if len(topics) < 3:
+            print("WARNING: Claude returned weak or irrelevant topics. Using strategic fallback topics.")
             return fallback_topics(news_items)
 
         return topics[:3]
 
     except Exception as e:
-        print(f"WARNING: Claude topic generation failed. Using fallback topics. Error: {e}")
+        print(f"WARNING: Claude topic generation failed. Using strategic fallback topics. Error: {e}")
         return fallback_topics(news_items)
 
 def build_approval_email(topics, approval_webhook_url):
@@ -207,7 +271,7 @@ def build_approval_email(topics, approval_webhook_url):
 <tr>
 <td style="padding:18px 40px 26px 40px; border-top:1px solid #e2e8f0;">
   <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#8a99ad;">
-    Generated from latest news sources. Review before external distribution.
+    Generated from latest business, market, banking and macro news sources. Review before external distribution.
   </p>
 </td>
 </tr>
