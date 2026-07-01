@@ -27,7 +27,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
 
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC_MODEL: claude-sonnet-4-6
+          ANTHROPIC_MODEL: claude-sonnet-5
 
           APPROVAL_WEBHOOK_URL: ${{ secrets.APPROVAL_WEBHOOK_URL }}
         run: |
