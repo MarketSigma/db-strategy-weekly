@@ -21,7 +21,12 @@ def ask_claude(prompt, max_tokens=5000):
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.content[0].text.strip()
+
+    for block in response.content:
+        if getattr(block, "type", None) == "text":
+            return block.text.strip()
+
+    raise ValueError("Claude returned no text block")
 
 def get_selected_topic(json_file, topic_id):
     with open(json_file, "r", encoding="utf-8") as f:
