@@ -32,13 +32,18 @@ REQUIRED_TERMS = [
     "sovereign", "infrastructure"
 ]
 
-def ask_claude(prompt, max_tokens=4000):
+def ask_claude(prompt, max_tokens=5000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.content[0].text.strip()
+
+    for block in response.content:
+        if getattr(block, "type", None) == "text":
+            return block.text.strip()
+
+    raise ValueError("Claude returned no text block")
 
 def extract_json_array(text):
     text = text.strip()
