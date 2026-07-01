@@ -17,7 +17,7 @@ TODAY = datetime.date.today().strftime("%d %B %Y")
 
 def ask_claude(prompt, max_tokens=5000):
     response = client.messages.create(
-        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-20260615"),
+        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
         temperature=0.35,
         messages=[{"role": "user", "content": prompt}]
