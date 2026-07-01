@@ -8,6 +8,10 @@ on:
         required: true
         default: "1"
 
+permissions:
+  contents: read
+  actions: read
+  
 jobs:
   final-send:
     runs-on: ubuntu-latest
