@@ -164,10 +164,10 @@ def build_final_email(topic, article):
         change_cell = html.escape(change) if change else "\u2014"
         rows += f"""
 <tr>
-<td style="padding:12px 16px; font-family:Arial,sans-serif; font-size:13px; color:{SLATE}; border-bottom:1px solid #eef2f6;">{metric}</td>
-<td style="padding:12px 16px; text-align:right; font-family:Georgia,serif; font-size:15px; color:{MUTED}; border-bottom:1px solid #eef2f6;">{curr}</td>
-<td style="padding:12px 16px; text-align:right; font-family:Georgia,serif; font-size:15px; font-weight:bold; color:{NAVY}; border-bottom:1px solid #eef2f6;">{proj}</td>
-<td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:13px; font-weight:bold; color:{BLUE}; border-bottom:1px solid #eef2f6;">{change_cell}</td>
+<td class="cell" style="padding:14px 16px; font-family:Arial,sans-serif; font-size:15px; color:{SLATE}; border-bottom:1px solid #eef2f6;">{metric}</td>
+<td class="cell" style="padding:14px 16px; text-align:right; font-family:Georgia,serif; font-size:16px; color:{MUTED}; border-bottom:1px solid #eef2f6;">{curr}</td>
+<td class="cell" style="padding:14px 16px; text-align:right; font-family:Georgia,serif; font-size:16px; font-weight:bold; color:{NAVY}; border-bottom:1px solid #eef2f6;">{proj}</td>
+<td class="cell" style="padding:14px 16px; text-align:right; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:{BLUE}; border-bottom:1px solid #eef2f6;">{change_cell}</td>
 </tr>"""
 
     # ----- Opportunity / Risk items -----
@@ -177,7 +177,7 @@ def build_final_email(topic, article):
             lead, rest = split_lead(it)
             pad = "0" if i == len(items) - 1 else "0 0 10px 0"
             body = f'<strong style="color:{NAVY};">{lead}.</strong> {rest}' if rest else f'<strong style="color:{NAVY};">{lead}</strong>'
-            out += f'<tr><td style="padding:{pad}; font-family:Arial,sans-serif; font-size:13px; line-height:1.5; color:{SLATE};">{body}</td></tr>'
+            out += f'<tr><td style="padding:{pad}; font-family:Arial,sans-serif; font-size:15px; line-height:1.55; color:{SLATE};">{body}</td></tr>'
         return out
 
     opp_html = points_html(article.get("opportunity", []))
@@ -190,14 +190,14 @@ def build_final_email(topic, article):
         pad = "0" if i == len(opts_list) else "0 0 11px 0"
         options += f"""
 <tr>
-<td width="30" valign="top"><div style="width:22px; height:22px; background-color:{BLUE}; border-radius:11px; color:#ffffff; font-family:Arial,sans-serif; font-size:12px; font-weight:bold; text-align:center; line-height:22px;">{i}</div></td>
-<td style="font-family:Arial,sans-serif; font-size:14px; line-height:1.45; color:{SLATE}; padding:{pad};">{html.escape(str(o))}</td>
+<td width="30" valign="top"><div style="width:24px; height:24px; background-color:{BLUE}; border-radius:12px; color:#ffffff; font-family:Arial,sans-serif; font-size:13px; font-weight:bold; text-align:center; line-height:24px;">{i}</div></td>
+<td style="font-family:Arial,sans-serif; font-size:15px; line-height:1.5; color:{SLATE}; padding:{pad};">{html.escape(str(o))}</td>
 </tr>"""
 
     # ----- What it means (split into paragraphs) -----
     impact_paras = ""
     for para in [p for p in str(article.get("doha_bank_impact", "")).split("\n") if p.strip()]:
-        impact_paras += f'<p style="margin:0 0 12px 0; font-family:Georgia,serif; font-size:15px; line-height:1.65; color:{SLATE};">{html.escape(para.strip())}</p>'
+        impact_paras += f'<p class="body-text" style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:16px; line-height:1.75; color:{SLATE};">{html.escape(para.strip())}</p>'
 
     source_title = html.escape(topic.get("source_title", "Source article"))
     source_name = html.escape(topic.get("source_name", "News source"))
@@ -218,81 +218,92 @@ def build_final_email(topic, article):
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DB Strategy Weekly</title>
+<style>
+  @media only screen and (max-width:620px) {{
+    .container {{ width:100% !important; border-radius:0 !important; }}
+    .pad {{ padding-left:24px !important; padding-right:24px !important; }}
+    .h1 {{ font-size:26px !important; line-height:1.2 !important; }}
+    .body-text {{ font-size:17px !important; line-height:1.75 !important; }}
+    .source-title {{ font-size:19px !important; }}
+    .source-summary {{ font-size:16px !important; }}
+    .cell {{ font-size:15px !important; padding:12px 12px !important; }}
+    .stack {{ display:block !important; width:100% !important; padding:0 0 22px 0 !important; }}
+    .stack-last {{ padding:0 !important; }}
+  }}
+</style>
 </head>
 <body style="margin:0; padding:0; background-color:#eceff4; font-family:Arial,Helvetica,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eceff4; padding:30px 12px;"><tr><td align="center">
-<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px; max-width:100%; background-color:#ffffff; border-radius:6px; overflow:hidden; box-shadow:0 4px 22px rgba(0,25,70,0.10);">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" class="container" style="width:640px; max-width:100%; background-color:#ffffff; border-radius:6px; overflow:hidden; box-shadow:0 4px 22px rgba(0,25,70,0.10);">
 
-  <tr><td style="background-color:{NAVY}; padding:22px 40px;">
+  <tr><td class="pad" style="background-color:{BLUE}; padding:24px 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; font-weight:bold; letter-spacing:1px; color:#ffffff;">DB Weekly Opportunities &amp; Risks</td>
-      <td align="right" style="font-family:Arial,sans-serif; font-size:12px; color:#a9c4e6; letter-spacing:1px;">{TODAY}</td>
+      <td style="font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:bold; letter-spacing:1px; color:#ffffff;">DB Weekly Opportunities &amp; Risks</td>
+      <td align="right" style="font-family:Arial,sans-serif; font-size:13px; color:#d5e6f8; letter-spacing:1px;">{TODAY}</td>
     </tr></table>
   </td></tr>
 
-  <tr><td style="padding:22px 40px 0 40px;">
-    <h1 style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:30px; line-height:1.15; font-weight:bold; color:{NAVY};">Weekly Strategic Outlook</h1>
-    <p style="margin:7px 0 0 0; font-family:Arial,sans-serif; font-size:14px; color:{GREY};">Key Opportunities, Risks and Strategic Implications for Doha Bank</p>
+  <tr><td class="pad" style="padding:24px 40px 0 40px;">
+    <h1 class="h1" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:32px; line-height:1.15; font-weight:bold; color:{NAVY};">Weekly Strategic Outlook</h1>
+    <p style="margin:8px 0 0 0; font-family:Arial,sans-serif; font-size:15px; color:{GREY};">Key Opportunities, Risks and Strategic Implications for Doha Bank</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 0 0;"><tr>
-      <td style="background-color:#eaf1fb; border:1px solid #cfe0f6; border-radius:12px; padding:4px 13px; font-family:Arial,sans-serif; font-size:11px; font-weight:bold; letter-spacing:0.3px; color:{BLUE};">&#10022;&nbsp; Prepared by DB Strategy AI Analyst</td>
+      <td style="background-color:#eaf1fb; border:1px solid #cfe0f6; border-radius:12px; padding:5px 14px; font-family:Arial,sans-serif; font-size:12px; font-weight:bold; letter-spacing:0.3px; color:{BLUE};">&#10022;&nbsp; Prepared by DB Strategy AI Analyst</td>
     </tr></table>
   </td></tr>
 
-  <tr><td style="padding:22px 40px 0 40px;">
-    <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">This week&rsquo;s source</p>
+  <tr><td class="pad" style="padding:24px 40px 0 40px;">
+    <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">This week&rsquo;s source</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f9fc; border-radius:6px;"><tr>
-      <td style="padding:16px 20px;">
-        <p style="margin:0 0 8px 0; font-family:Georgia,serif; font-size:16px; font-weight:bold; color:{NAVY};">{source_title}</p>
-        <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:11px; color:#111111;">{source_meta}</p>
-        <p style="margin:0; font-family:Arial,sans-serif; font-size:13px; line-height:1.5; color:#5a6b7d;">{source_summary}</p>
-      </td>
-      <td align="right" valign="middle" style="padding:16px 20px 16px 0; white-space:nowrap;">
-        <a href="{source_url}" style="font-family:Arial,sans-serif; font-size:12px; font-weight:bold; color:#ffffff; background-color:{BLUE}; border-radius:5px; padding:9px 16px; text-decoration:none;">Read more &rarr;</a>
+      <td style="padding:20px 24px;">
+        <p class="source-title" style="margin:0 0 8px 0; font-family:Georgia,serif; font-size:18px; font-weight:bold; line-height:1.35; color:{NAVY};">{source_title}</p>
+        <p style="margin:0 0 12px 0; font-family:Arial,sans-serif; font-size:12px; color:#111111;">{source_meta}</p>
+        <p class="source-summary" style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:15px; line-height:1.6; color:#5a6b7d;">{source_summary}</p>
+        <p style="margin:0; text-align:right;"><a href="{source_url}" style="font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:{BLUE}; text-decoration:none;">Read more &rarr;</a></p>
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td style="padding:28px 40px 0 40px;">
-    <p style="margin:0 0 12px 0; font-family:Arial,sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">What it means for Doha Bank</p>
+  <tr><td class="pad" style="padding:30px 40px 0 40px;">
+    <p style="margin:0 0 12px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">What it means for Doha Bank</p>
     {impact_paras}
   </td></tr>
 
-  <tr><td style="padding:26px 40px 0 40px;">
-    <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Projected impact on key metrics</p>
+  <tr><td class="pad" style="padding:28px 40px 0 40px;">
+    <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Projected impact on key metrics</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6ebf2; border-radius:6px; border-collapse:separate; overflow:hidden;">
-      <tr style="background-color:{NAVY};">
-        <td style="padding:9px 16px; font-family:Arial,sans-serif; font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:#ffffff;">Metric</td>
-        <td style="padding:9px 16px; text-align:right; font-family:Arial,sans-serif; font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:#a9c4e6;">Current</td>
-        <td style="padding:9px 16px; text-align:right; font-family:Arial,sans-serif; font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:#ffffff;">Projected</td>
-        <td style="padding:9px 16px; text-align:right; font-family:Arial,sans-serif; font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:#ffffff;">Change</td>
+      <tr style="background-color:{BLUE};">
+        <td style="padding:11px 16px; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.5px; text-transform:uppercase; color:#ffffff;">Metric</td>
+        <td style="padding:11px 16px; text-align:right; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.5px; text-transform:uppercase; color:#e8f1fb;">Current</td>
+        <td style="padding:11px 16px; text-align:right; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.5px; text-transform:uppercase; color:#ffffff;">Projected</td>
+        <td style="padding:11px 16px; text-align:right; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.5px; text-transform:uppercase; color:#ffffff;">Change</td>
       </tr>
       {rows}
     </table>
     <p style="margin:8px 2px 0 2px; font-family:Arial,sans-serif; font-size:10px; line-height:1.5; color:{MUTED};">Doha Bank figures are based on reported results. Projected figures represent model-based estimates intended to illustrate potential impacts.</p>
   </td></tr>
 
-  <tr><td style="padding:28px 40px 0 40px;">
+  <tr><td class="pad" style="padding:30px 40px 0 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="49%" valign="top" style="padding-right:14px;">
-        <p style="margin:0 0 12px 0; padding-bottom:8px; border-bottom:2px solid {BLUE}; font-family:Arial,sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Opportunity</p>
+      <td width="49%" valign="top" class="stack" style="padding-right:14px;">
+        <p style="margin:0 0 12px 0; padding-bottom:8px; border-bottom:2px solid {BLUE}; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Opportunity</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{opp_html}</table>
       </td>
-      <td width="2%">&nbsp;</td>
-      <td width="49%" valign="top" style="padding-left:14px;">
-        <p style="margin:0 0 12px 0; padding-bottom:8px; border-bottom:2px solid {NAVY}; font-family:Arial,sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{NAVY};">Risk</p>
+      <td width="2%" class="stack" style="font-size:0; line-height:0;">&nbsp;</td>
+      <td width="49%" valign="top" class="stack stack-last" style="padding-left:14px;">
+        <p style="margin:0 0 12px 0; padding-bottom:8px; border-bottom:2px solid {NAVY}; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{NAVY};">Risk</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{risk_html}</table>
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td style="padding:30px 40px 0 40px;">
-    <p style="margin:0 0 13px 0; font-family:Arial,sans-serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Strategic recommendations</p>
+  <tr><td class="pad" style="padding:32px 40px 0 40px;">
+    <p style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Strategic recommendations</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{options}</table>
   </td></tr>
 
-  <tr><td style="padding:28px 40px 28px 40px;">
+  <tr><td class="pad" style="padding:30px 40px 30px 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e4e9f0;"><tr>
-      <td style="padding-top:15px; font-family:Arial,sans-serif; font-size:10px; color:{MUTED}; line-height:1.5;">The analysis expressed is that of the DB Strategy AI Analyst.</td>
+      <td style="padding-top:15px; font-family:Arial,sans-serif; font-size:11px; color:{MUTED}; line-height:1.5;">The analysis expressed is that of the DB Strategy AI Analyst.</td>
       <td align="right" style="padding-top:15px; font-family:Arial,sans-serif; font-size:10px; color:#a7b2c2;">&copy; 2026 Doha Bank</td>
     </tr></table>
   </td></tr>
@@ -328,3 +339,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
