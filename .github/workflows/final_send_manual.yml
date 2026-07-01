@@ -53,6 +53,6 @@ jobs:
           DB_STRATEGY_WEEKLY_RESEND_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_RESEND_API_KEY }}
           DB_STRATEGY_WEEKLY_EMAIL_FROM: ${{ secrets.DB_STRATEGY_WEEKLY_EMAIL_FROM }}
           DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO: ${{ secrets.DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO }}
-          DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: DB Strategy Weekly
+          DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: DB Weekly Opportunities & Risks
         run: |
           python send_email.py strategy_weekly_final.html
