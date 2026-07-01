@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+    #!/usr/bin/env python3
 
 import os
 import sys
@@ -20,10 +20,9 @@ def main():
         os.environ.get("DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO")
     )
 
-    subject = os.environ.get(
-        "DB_STRATEGY_WEEKLY_EMAIL_SUBJECT",
-        f"Approval Required — DB Strategy Weekly — {date.today():%d %b %Y}"
-    )
+    # Base subject from the workflow; the date is appended automatically each run.
+    base_subject = os.environ.get("DB_STRATEGY_WEEKLY_EMAIL_SUBJECT", "DB Strategy Weekly")
+    subject = f"{base_subject} \u2014 {date.today():%d %B %Y}"
 
     resend.Emails.send({
         "from": sender,
@@ -37,3 +36,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
