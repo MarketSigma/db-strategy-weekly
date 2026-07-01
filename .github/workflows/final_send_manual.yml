@@ -44,7 +44,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC_MODEL: sonnet-4-6
+          ANTHROPIC_MODEL: sonnet-5
         run: |
           python generate_weekly.py --topic-id "${{ github.event.inputs.topic_id }}" --drafts-json drafts.json --out strategy_weekly_final.html --bank "Doha Bank"
 
