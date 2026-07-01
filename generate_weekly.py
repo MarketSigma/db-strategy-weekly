@@ -56,12 +56,18 @@ def get_selected_topic(json_file, topic_id):
 
 
 def get_doha_bank_metrics(bank_name):
+    """
+    Fetch latest Doha Bank metrics from Supabase.
+
+    Uses DHBK ticker instead of bank_name so the query works whether
+    the workflow passes "Doha Bank" or "Doha Bank Q.P.S.C.".
+    """
     result = (
         supabase.table("bank_metric_values")
         .select("*")
-        .eq("bank_name", bank_name)
+        .eq("bank_ticker", "DHBK")
         .order("period_end", desc=True)
-        .limit(30)
+        .limit(80)
         .execute()
     )
     return result.data or []
@@ -91,7 +97,112 @@ def split_lead(text):
     return html.escape(s.rstrip(".")), ""
 
 
+def format_number(value):
+    """Format numeric values without unnecessary decimals."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+    if abs(value - round(value)) < 0.05:
+        return f"{value:,.0f}"
+    return f"{value:,.1f}"
+
+
+def format_metric_value(row):
+    """
+    Convert Supabase stored values into stable display values.
+
+    Example:
+    value=121212587 with unit='thousands' means:
+    QAR 121,212,587 thousand = QAR 121.2bn.
+    """
+    raw_value = row.get("value")
+
+    if raw_value is None:
+        return ""
+
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return str(raw_value)
+
+    unit = str(row.get("unit") or "").strip().lower()
+    currency = row.get("currency") or ""
+
+    if unit in ("thousand", "thousands", "qar thousands", "qar '000", "qar000"):
+        actual_value = value * 1_000
+    elif unit in ("million", "millions"):
+        actual_value = value * 1_000_000
+    elif unit in ("billion", "billions"):
+        actual_value = value * 1_000_000_000
+    elif unit in ("percent", "percentage", "%"):
+        return f"{format_number(value)}%"
+    elif unit in ("ratio", "x"):
+        return f"{format_number(value)}x"
+    else:
+        actual_value = value
+
+    prefix = f"{currency} " if currency else ""
+
+    if abs(actual_value) >= 1_000_000_000:
+        return f"{prefix}{actual_value / 1_000_000_000:,.1f}bn"
+    if abs(actual_value) >= 1_000_000:
+        return f"{prefix}{actual_value / 1_000_000:,.1f}m"
+    if abs(actual_value) >= 1_000:
+        return f"{prefix}{actual_value / 1_000:,.1f}k"
+
+    return f"{prefix}{actual_value:,.0f}"
+
+
+def format_metrics_for_ai(metrics):
+    """
+    Send Claude clean financial lines instead of raw Supabase rows.
+
+    This prevents the model from randomly showing the same financial
+    value as k, m, or bn across different articles.
+    """
+    if not metrics:
+        return "No Doha Bank metrics were returned from Supabase."
+
+    lines = [
+        "IMPORTANT UNIT RULES:",
+        "- Values below are already converted into final display units.",
+        "- Do not convert them again.",
+        "- Do not use k or raw thousand values.",
+        "- Use only these displayed values for Doha Bank reported financials.",
+        ""
+    ]
+
+    latest_period = metrics[0].get("period_end", "")
+    if latest_period:
+        lines.append(f"Latest available reporting period: {latest_period}")
+        lines.append("")
+
+    for m in metrics:
+        metric_name = m.get("metric_name") or m.get("metric_code") or "Metric"
+        metric_code = m.get("metric_code") or ""
+        period_end = m.get("period_end") or ""
+        category = m.get("metric_category") or ""
+        value = format_metric_value(m)
+
+        line = f"- {metric_name}"
+        if metric_code:
+            line += f" ({metric_code})"
+        line += f": {value}"
+        if period_end:
+            line += f" | period: {period_end}"
+        if category:
+            line += f" | category: {category}"
+
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
 def ai_write_article(topic, metrics, bank_name, impact_rules):
+    formatted_metrics = format_metrics_for_ai(metrics)
+
     prompt = f"""
 You are DB Strategy AI Analyst.
 
@@ -146,8 +257,16 @@ Selected topic:
 Impact rules:
 {json.dumps(impact_rules, ensure_ascii=False)}
 
-Available Doha Bank metrics (Supabase):
-{json.dumps(metrics, ensure_ascii=False)}
+Available Doha Bank metrics from Supabase:
+{formatted_metrics}
+
+Strict financial data rules:
+- Treat the formatted Supabase metrics above as the only source of Doha Bank reported figures.
+- Values are already converted into QAR bn, QAR m, %, or ratio format.
+- Do not write values in "k" or "thousands".
+- Do not re-scale or re-convert the figures.
+- If you calculate projected_value, base it only on the displayed current value and make the assumption explicit in the wording.
+- If the required current metric is not listed above, leave current_value as "".
 """
     text = ask_claude(prompt)
     return extract_json_object(text)
@@ -321,7 +440,7 @@ def main():
     parser.add_argument("--topic-id", default=os.getenv("TOPIC_ID", "1"))
     parser.add_argument("--drafts-json", default="drafts.json")
     parser.add_argument("--out", default="strategy_weekly_final.html")
-    parser.add_argument("--bank", default="Doha Bank")
+    parser.add_argument("--bank", default="Doha Bank Q.P.S.C.")
     parser.add_argument("--impact-rules", default="impact_rules.json")
     args = parser.parse_args()
 
@@ -340,3 +459,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
