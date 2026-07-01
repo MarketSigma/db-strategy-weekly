@@ -20,7 +20,6 @@ def ask_claude(prompt, max_tokens=5000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
-        temperature=0.2,
         messages=[{"role": "user", "content": prompt}]
     )
 
