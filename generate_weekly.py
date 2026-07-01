@@ -348,7 +348,7 @@ def build_final_email(topic, article):
     .source-title {{ font-size:19px !important; }}
     .source-summary {{ font-size:16px !important; }}
     .cell {{ font-size:15px !important; padding:13px 14px !important; }}
-    .stack {{ display:block !important; width:100% !important; margin:0 0 14px 0 !important; }}
+    .stack {{ display:block !important; width:100% !important; max-width:100% !important; box-sizing:border-box !important; margin:0 0 14px 0 !important; }}
     .stack-last {{ margin:0 !important; }}
     .spacer {{ display:none !important; }}
   }}
@@ -404,12 +404,12 @@ def build_final_email(topic, article):
 
   <tr><td class="pad" style="padding:32px 40px 0 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="49%" valign="top" class="stack" style="background-color:#f2f7fd; border-radius:8px; border-top:3px solid {BLUE}; padding:18px 20px;">
+      <td width="49%" valign="top" class="stack" style="background-color:#f2f7fd; border-radius:8px; border-top:3px solid {BLUE}; padding:18px 20px; box-sizing:border-box;">
         <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Opportunity</p>
         {opp_html}
       </td>
       <td width="2%" class="spacer" style="font-size:0; line-height:0;">&nbsp;</td>
-      <td width="49%" valign="top" class="stack stack-last" style="background-color:#f4f6f9; border-radius:8px; border-top:3px solid {NAVY}; padding:18px 20px;">
+      <td width="49%" valign="top" class="stack stack-last" style="background-color:#f4f6f9; border-radius:8px; border-top:3px solid {NAVY}; padding:18px 20px; box-sizing:border-box;">
         <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-weight:bold; color:{NAVY};">Risk</p>
         {risk_html}
       </td>
