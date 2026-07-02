@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+
 import os
 import json
 import html
 import argparse
 import datetime
+import re
 import anthropic
 from supabase import create_client
 
@@ -15,7 +18,6 @@ supabase = create_client(
 
 TODAY = datetime.date.today().strftime("%d %B %Y")
 
-# ---- Doha Bank brand tokens ----
 NAVY = "#002b5c"
 BLUE = "#0072ce"
 SLATE = "#2c3e54"
@@ -27,41 +29,63 @@ def ask_claude(prompt, max_tokens=5000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
+        temperature=0.2,
         messages=[{"role": "user", "content": prompt}]
     )
+
     for block in response.content:
         if getattr(block, "type", None) == "text":
             return block.text.strip()
+
     raise ValueError("Claude returned no text block")
 
 
 def extract_json_object(text):
     cleaned = text.strip()
+
     if cleaned.startswith("```"):
-        cleaned = cleaned.replace("```json", "", 1).replace("```JSON", "", 1).replace("```", "").strip()
+        cleaned = (
+            cleaned.replace("```json", "", 1)
+            .replace("```JSON", "", 1)
+            .replace("```", "")
+            .strip()
+        )
+
     start = cleaned.find("{")
     end = cleaned.rfind("}")
+
     if start == -1 or end == -1 or end <= start:
         raise ValueError(f"Claude did not return a JSON object: {text[:500]}")
-    return json.loads(cleaned[start:end + 1])
+
+    json_text = cleaned[start:end + 1]
+
+    try:
+        return json.loads(json_text)
+    except json.JSONDecodeError:
+        # Remove illegal raw control characters that sometimes appear inside AI JSON strings.
+        json_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", json_text)
+
+        try:
+            return json.loads(json_text)
+        except json.JSONDecodeError as e:
+            print("Failed to parse Claude JSON.")
+            print("Claude output preview:")
+            print(json_text[:2000])
+            raise e
 
 
 def get_selected_topic(json_file, topic_id):
     with open(json_file, "r", encoding="utf-8") as f:
         topics = json.load(f)
+
     for t in topics:
         if str(t.get("topic_id")) == str(topic_id):
             return t
+
     return topics[0]
 
 
 def get_doha_bank_metrics(bank_name):
-    """
-    Fetch latest Doha Bank metrics from Supabase.
-
-    Uses DHBK ticker instead of bank_name so the query works whether
-    the workflow passes "Doha Bank" or "Doha Bank Q.P.S.C.".
-    """
     result = (
         supabase.table("bank_metric_values")
         .select("*")
@@ -76,6 +100,7 @@ def get_doha_bank_metrics(bank_name):
 def load_impact_rules(path="impact_rules.json"):
     if not os.path.exists(path):
         return {}
+
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -89,16 +114,16 @@ def safe_get(row, *keys, default=""):
 
 
 def split_lead(text):
-    """Split 'Lead phrase. Detail sentence.' into a bold lead + rest."""
     s = str(text).strip()
+
     if ". " in s:
         lead, rest = s.split(". ", 1)
         return html.escape(lead), html.escape(rest)
+
     return html.escape(s.rstrip(".")), ""
 
 
 def format_number(value):
-    """Format numeric values without unnecessary decimals."""
     try:
         value = float(value)
     except (TypeError, ValueError):
@@ -106,17 +131,11 @@ def format_number(value):
 
     if abs(value - round(value)) < 0.05:
         return f"{value:,.0f}"
+
     return f"{value:,.1f}"
 
 
 def format_metric_value(row):
-    """
-    Convert Supabase stored values into stable display values.
-
-    Example:
-    value=121212587 with unit='thousands' means:
-    QAR 121,212,587 thousand = QAR 121.2bn.
-    """
     raw_value = row.get("value")
 
     if raw_value is None:
@@ -156,12 +175,6 @@ def format_metric_value(row):
 
 
 def format_metrics_for_ai(metrics):
-    """
-    Send Claude clean financial lines instead of raw Supabase rows.
-
-    This prevents the model from randomly showing the same financial
-    value as k, m, or bn across different articles.
-    """
     if not metrics:
         return "No Doha Bank metrics were returned from Supabase."
 
@@ -190,6 +203,7 @@ def format_metrics_for_ai(metrics):
         if metric_code:
             line += f" ({metric_code})"
         line += f": {value}"
+
         if period_end:
             line += f" | period: {period_end}"
         if category:
@@ -208,6 +222,15 @@ You are DB Strategy AI Analyst.
 
 Write a polished weekly executive strategy briefing for {bank_name}.
 
+Return ONLY valid RFC8259 JSON.
+Do not include markdown.
+Do not include code fences.
+Do not include commentary outside JSON.
+All newline characters inside string values must be escaped as \\n.
+Do not include raw line breaks inside JSON strings.
+Do not include tabs inside JSON strings.
+Escape double quotes inside text values.
+
 Use this EXACT JSON structure:
 {{
   "article_title": "...",
@@ -224,29 +247,36 @@ Use this EXACT JSON structure:
 }}
 
 Global rules:
-- Output JSON only. No markdown, no code fences, no commentary.
-- Do NOT invent financial numbers. Only use Doha Bank figures present in the Supabase data below.
-- If a metric or a prior period is missing, use an empty string "" for that value; never guess.
+- Do NOT invent financial numbers.
+- Only use Doha Bank figures present in the Supabase data below.
+- If a metric or prior period is missing, use an empty string "" for that value.
 - Never write "not available".
 
 source_summary:
-- Maximum 2 sentences. Do not retell the article; assume the reader can open the Read more link.
+- Maximum 2 sentences.
+- Do not retell the article; assume the reader can open the Read more link.
 
-doha_bank_impact  (this is the "What it means for Doha Bank" section):
-- One to two short paragraphs, plain executive English.
-- The most substantive section: quantify the impact using real Doha Bank figures where available.
-- Cite at least 3 metrics by value if the data allows. Avoid generic phrasing like "supports growth".
+doha_bank_impact:
+- One to two short paragraphs.
+- Use \\n between paragraphs, not raw line breaks.
+- The most substantive section.
+- Quantify the impact using real Doha Bank figures where available.
+- Cite at least 3 metrics by value if the data allows.
+- Avoid generic phrasing like "supports growth".
 
-impact_table  ("Key metrics - current vs projected"):
-- 2 to 5 rows. Only include metrics that THIS development materially moves.
-- current_value = the latest reported value, taken ONLY from the Supabase data (never invented).
-- projected_value = a reasoned estimate of that metric AFTER the development plays out, grounded in the current value and a stated assumption (e.g. a 50bp cut). Keep it directional and conservative.
-- change = the movement from current to projected (e.g. "-4 bps", "-QAR 42m").
-- Do NOT include a metric if the development does not plausibly move it.
+impact_table:
+- 2 to 5 rows.
+- Only include metrics this development materially moves.
+- current_value = latest reported value from Supabase only.
+- projected_value = reasoned estimate after the development plays out.
+- change = movement from current to projected.
+- Do not include a metric if the development does not plausibly move it.
 
 opportunity / risk:
-- 1 to 2 items each. Each item: a short bold lead, a full stop, then one sentence.
-- Quantify with real figures where possible. Opportunities and risks must both relate to THIS week's development.
+- 1 to 2 items each.
+- Each item must be one string only.
+- Each item format: "Short lead. One-sentence explanation."
+- Quantify with real figures where possible.
 
 strategic_options:
 - 3 concrete, actionable recommendations for senior management.
@@ -265,23 +295,25 @@ Strict financial data rules:
 - Values are already converted into QAR bn, QAR m, %, or ratio format.
 - Do not write values in "k" or "thousands".
 - Do not re-scale or re-convert the figures.
-- If you calculate projected_value, base it only on the displayed current value and make the assumption explicit in the wording.
+- If you calculate projected_value, base it only on the displayed current value and make the assumption explicit.
 - If the required current metric is not listed above, leave current_value as "".
 """
+
     text = ask_claude(prompt)
     return extract_json_object(text)
 
 
 def build_final_email(topic, article):
-    # ----- Key metrics table (old -> new) -----
     rows = ""
+
     for idx, r in enumerate(article.get("impact_table", [])):
         metric = html.escape(safe_get(r, "metric", "line_item"))
-        curr = html.escape(safe_get(r, "current_value", "current", default="\u2014") or "\u2014")
-        proj = html.escape(safe_get(r, "projected_value", "projected", default="\u2014") or "\u2014")
+        curr = html.escape(safe_get(r, "current_value", "current", default="—") or "—")
+        proj = html.escape(safe_get(r, "projected_value", "projected", default="—") or "—")
         change = safe_get(r, "change", default="")
-        change_cell = html.escape(change) if change else "\u2014"
+        change_cell = html.escape(change) if change else "—"
         row_bg = "#ffffff" if idx % 2 == 0 else "#f7fafd"
+
         rows += f"""
 <tr style="background-color:{row_bg};">
 <td class="cell" style="padding:15px 18px; font-family:Arial,sans-serif; font-size:15px; color:{SLATE}; border-bottom:1px solid #eef2f6;">{metric}</td>
@@ -290,47 +322,56 @@ def build_final_email(topic, article):
 <td class="cell" style="padding:15px 18px; text-align:right; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:{BLUE}; border-bottom:1px solid #eef2f6;">{change_cell}</td>
 </tr>"""
 
-    # ----- Opportunity / Risk items (as paragraphs inside a card) -----
     def points_html(items):
         out = ""
+
         for i, it in enumerate(items):
             lead, rest = split_lead(it)
             mb = "0" if i == len(items) - 1 else "0 0 10px 0"
-            body = f'<strong style="color:{NAVY};">{lead}.</strong> {rest}' if rest else f'<strong style="color:{NAVY};">{lead}</strong>'
+
+            if rest:
+                body = f'<strong style="color:{NAVY};">{lead}.</strong> {rest}'
+            else:
+                body = f'<strong style="color:{NAVY};">{lead}</strong>'
+
             out += f'<p style="margin:{mb}; font-family:Arial,sans-serif; font-size:15px; line-height:1.6; color:{SLATE};">{body}</p>'
+
         return out
 
     opp_html = points_html(article.get("opportunity", []))
     risk_html = points_html(article.get("risk", []))
 
-    # ----- Strategic recommendations -----
-    opts_list = article.get("strategic_options", [])
     options = ""
-    for i, o in enumerate(opts_list, 1):
-        pad = "2px 0 0 4px" if i == len(opts_list) else "2px 0 13px 4px"
-        badge_pad = "" if i == len(opts_list) else "padding-bottom:13px;"
+    for i, o in enumerate(article.get("strategic_options", []), 1):
+        pad = "2px 0 0 4px" if i == len(article.get("strategic_options", [])) else "2px 0 13px 4px"
+        badge_pad = "" if i == len(article.get("strategic_options", [])) else "padding-bottom:13px;"
+
         options += f"""
 <tr>
 <td width="34" valign="top" style="{badge_pad}"><div style="width:25px; height:25px; background-color:{BLUE}; border-radius:13px; color:#ffffff; font-family:Arial,sans-serif; font-size:13px; font-weight:bold; text-align:center; line-height:25px;">{i}</div></td>
 <td style="font-family:Arial,sans-serif; font-size:15px; line-height:1.55; color:{SLATE}; padding:{pad};">{html.escape(str(o))}</td>
 </tr>"""
 
-    # ----- What it means (split into paragraphs) -----
     impact_paras = ""
-    for para in [p for p in str(article.get("doha_bank_impact", "")).split("\n") if p.strip()]:
+    impact_text = str(article.get("doha_bank_impact", "")).replace("\\n", "\n")
+
+    for para in [p for p in impact_text.split("\n") if p.strip()]:
         impact_paras += f'<p class="body-text" style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:16px; line-height:1.75; color:{SLATE};">{html.escape(para.strip())}</p>'
 
     source_title = html.escape(topic.get("source_title", "Source article"))
     source_name = html.escape(topic.get("source_name", "News source"))
     source_url = html.escape(topic.get("source_url", "#"))
     source_date = html.escape(str(topic.get("source_date", "")).strip())
-    source_meta = f'{source_name}'
+
+    source_meta = source_name
     if source_date:
         source_meta += f' &nbsp;&middot;&nbsp; {source_date}'
-    _ss = str(article.get("source_summary", "")).strip()
-    if _ss and not _ss.endswith(("\u2026", "...")):
-        _ss = _ss.rstrip(".") + "\u2026"
-    source_summary = html.escape(_ss)
+
+    source_summary_raw = str(article.get("source_summary", "")).strip()
+    if source_summary_raw and not source_summary_raw.endswith(("…", "...")):
+        source_summary_raw = source_summary_raw.rstrip(".") + "…"
+
+    source_summary = html.escape(source_summary_raw)
 
     return f"""
 <!DOCTYPE html>
@@ -447,8 +488,8 @@ def main():
     topic = get_selected_topic(args.drafts_json, args.topic_id)
     metrics = get_doha_bank_metrics(args.bank)
     impact_rules = load_impact_rules(args.impact_rules)
-    article = ai_write_article(topic, metrics, args.bank, impact_rules)
 
+    article = ai_write_article(topic, metrics, args.bank, impact_rules)
     html_body = build_final_email(topic, article)
 
     with open(args.out, "w", encoding="utf-8") as f:
@@ -459,5 +500,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
