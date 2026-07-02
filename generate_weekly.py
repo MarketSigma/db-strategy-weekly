@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+    #!/usr/bin/env python3
 
 import os
 import json
@@ -316,10 +316,10 @@ def build_final_email(topic, article):
 
         rows += f"""
 <tr style="background-color:{row_bg};">
-<td class="cell" style="padding:15px 18px; font-family:Arial,sans-serif; font-size:15px; color:{SLATE}; border-bottom:1px solid #eef2f6;">{metric}</td>
-<td class="cell" style="padding:15px 18px; text-align:right; font-family:Georgia,serif; font-size:16px; color:{MUTED}; border-bottom:1px solid #eef2f6;">{curr}</td>
-<td class="cell" style="padding:15px 18px; text-align:right; font-family:Georgia,serif; font-size:16px; font-weight:bold; color:{NAVY}; border-bottom:1px solid #eef2f6;">{proj}</td>
-<td class="cell" style="padding:15px 18px; text-align:right; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:{BLUE}; border-bottom:1px solid #eef2f6;">{change_cell}</td>
+<td class="cell" style="padding:11px 14px; font-family:Arial,sans-serif; font-size:15px; color:{SLATE}; border-bottom:1px solid #eef2f6;">{metric}</td>
+<td class="cell" style="padding:11px 14px; text-align:right; font-family:Georgia,serif; font-size:15px; color:{MUTED}; border-bottom:1px solid #eef2f6;">{curr}</td>
+<td class="cell" style="padding:11px 14px; text-align:right; font-family:Georgia,serif; font-size:15px; font-weight:bold; color:{NAVY}; border-bottom:1px solid #eef2f6;">{proj}</td>
+<td class="cell" style="padding:11px 14px; text-align:right; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:{BLUE}; border-bottom:1px solid #eef2f6;">{change_cell}</td>
 </tr>"""
 
     def points_html(items):
@@ -348,15 +348,15 @@ def build_final_email(topic, article):
 
         options += f"""
 <tr>
-<td width="34" valign="top" style="{badge_pad}"><div style="width:25px; height:25px; background-color:{BLUE}; border-radius:13px; color:#ffffff; font-family:Arial,sans-serif; font-size:13px; font-weight:bold; text-align:center; line-height:25px;">{i}</div></td>
-<td style="font-family:Arial,sans-serif; font-size:15px; line-height:1.55; color:{SLATE}; padding:{pad};">{html.escape(str(o))}</td>
+<td width="34" valign="top" style="{badge_pad} padding-top:1px;"><div style="width:23px; height:23px; background-color:{BLUE}; border-radius:12px; color:#ffffff; font-family:Arial,sans-serif; font-size:12px; font-weight:bold; text-align:center; line-height:23px;">{i}</div></td>
+<td valign="top" style="font-family:Arial,sans-serif; font-size:15px; line-height:1.5; color:{SLATE}; padding:0 0 12px 6px;">{html.escape(str(o))}</td>
 </tr>"""
 
     impact_paras = ""
     impact_text = str(article.get("doha_bank_impact", "")).replace("\\n", "\n")
 
     for para in [p for p in impact_text.split("\n") if p.strip()]:
-        impact_paras += f'<p class="body-text" style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:16px; line-height:1.75; color:{SLATE};">{html.escape(para.strip())}</p>'
+        impact_paras += f'<p class="body-text" style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:15px; line-height:1.65; color:{SLATE};">{html.escape(para.strip())}</p>'
 
     source_title = html.escape(topic.get("source_title", "Source article"))
     source_name = html.escape(topic.get("source_name", "News source"))
@@ -406,7 +406,7 @@ def build_final_email(topic, article):
       <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:{BLUE};">DB Weekly &nbsp;&middot;&nbsp; Opportunities &amp; Risks</td>
       <td align="right" style="font-family:Arial,sans-serif; font-size:12px; letter-spacing:1px; color:{MUTED};">{TODAY}</td>
     </tr></table>
-    <h1 class="h1" style="margin:20px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:34px; line-height:1.12; font-weight:bold; color:{NAVY};">Weekly Strategic Outlook</h1>
+    <h1 class="h1" style="margin:20px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:30px; line-height:1.12; font-weight:bold; color:{NAVY};">Weekly Strategic Outlook</h1>
     <p style="margin:10px 0 0 0; font-family:Arial,sans-serif; font-size:15px; line-height:1.5; color:{GREY};">Key opportunities, risks and strategic implications for Doha Bank</p>
   </td></tr>
 
@@ -424,12 +424,12 @@ def build_final_email(topic, article):
     </tr></table>
   </td></tr>
 
-  <tr><td class="pad" style="padding:32px 40px 0 40px;">
+  <tr><td class="pad" style="padding:24px 40px 0 40px;">
     <p style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">What it means for Doha Bank</p>
     {impact_paras}
   </td></tr>
 
-  <tr><td class="pad" style="padding:32px 40px 0 40px;">
+  <tr><td class="pad" style="padding:24px 40px 0 40px;">
     <p style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Projected impact on key metrics</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6ebf2; border-radius:8px; border-collapse:separate; overflow:hidden;">
       <tr style="background-color:#ffffff;">
@@ -443,21 +443,21 @@ def build_final_email(topic, article):
     <p style="margin:10px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Doha Bank figures are based on reported results. Projected figures represent model-based estimates intended to illustrate potential impacts.</p>
   </td></tr>
 
-  <tr><td class="pad" style="padding:32px 40px 0 40px;">
+  <tr><td class="pad" style="padding:24px 40px 0 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="49%" valign="top" class="stack" style="background-color:#f2f7fd; border-radius:8px; border-top:3px solid {BLUE}; padding:18px 20px; box-sizing:border-box;">
+      <td width="49%" valign="top" class="stack" style="background-color:#f2f7fd; border-radius:8px; border-top:3px solid {BLUE}; padding:14px 16px; box-sizing:border-box;">
         <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Opportunity</p>
         {opp_html}
       </td>
       <td width="2%" class="spacer" style="font-size:0; line-height:0;">&nbsp;</td>
-      <td width="49%" valign="top" class="stack stack-last" style="background-color:#f4f6f9; border-radius:8px; border-top:3px solid {NAVY}; padding:18px 20px; box-sizing:border-box;">
+      <td width="49%" valign="top" class="stack stack-last" style="background-color:#f4f6f9; border-radius:8px; border-top:3px solid {NAVY}; padding:14px 16px; box-sizing:border-box;">
         <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-weight:bold; color:{NAVY};">Risk</p>
         {risk_html}
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td class="pad" style="padding:32px 40px 0 40px;">
+  <tr><td class="pad" style="padding:24px 40px 0 40px;">
     <p style="margin:0 0 16px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Strategic recommendations</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{options}</table>
   </td></tr>
@@ -500,3 +500,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
