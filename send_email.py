@@ -50,20 +50,19 @@ def main():
 
     resend.api_key = os.environ["DB_STRATEGY_WEEKLY_RESEND_API_KEY"]
 
-    sender = os.environ["DB_STRATEGY_WEEKLY_EMAIL_FROM"]
-    to = os.environ.get(
-        "DB_STRATEGY_WEEKLY_APPROVER_EMAIL",
-        os.environ.get("DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO")
-    )
+sender = os.environ["DB_STRATEGY_WEEKLY_EMAIL_FROM"]
 
-    subject = build_subject()
+bcc = os.environ["DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO"]
 
-    resend.Emails.send({
-        "from": sender,
-        "to": [x.strip() for x in to.split(",") if x.strip()],
-        "subject": subject,
-        "html": html
-    })
+subject = build_subject()
+
+resend.Emails.send({
+    "from": sender,
+    "to": ["salam.majari@dohabank.com.qa"],  # or your preferred address
+    "bcc": [x.strip() for x in bcc.split(",") if x.strip()],
+    "subject": subject,
+    "html": html
+})
 
     print(f"Sent '{subject}' to {to}")
 
