@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+    #!/usr/bin/env python3
 
 import os
 import sys
@@ -36,6 +36,7 @@ def build_subject():
     if today in base_subject:
         return base_subject
 
+    # Remove trailing separators so we add only one clean em dash.
     base_subject = base_subject.rstrip(" -–—")
 
     return f"{base_subject} — {today}"
@@ -50,21 +51,23 @@ def main():
     resend.api_key = os.environ["DB_STRATEGY_WEEKLY_RESEND_API_KEY"]
 
     sender = os.environ["DB_STRATEGY_WEEKLY_EMAIL_FROM"]
-
-    bcc = os.environ["DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO"]
-
     subject = build_subject()
+
+    # Approval draft email: send only to approver.
+    # Final send BCC should be handled in the separate final-send email file/workflow.
+    approver = os.environ["DB_STRATEGY_WEEKLY_APPROVER_EMAIL"]
 
     resend.Emails.send({
         "from": sender,
-        "to": ["updates@market-sigma.com"],
-        "bcc": [x.strip() for x in bcc.split(",") if x.strip()],
+        "to": [x.strip() for x in approver.split(",") if x.strip()],
         "subject": subject,
         "html": html
     })
 
-    print(f"Sent '{subject}' to BCC distribution list")
+    print(f"Sent '{subject}' to approver only")
 
 
 if __name__ == "__main__":
     main()
+
+    
