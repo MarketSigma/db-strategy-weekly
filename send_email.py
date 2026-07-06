@@ -7,22 +7,6 @@ import resend
 
 
 def build_subject():
-    """
-    Build a clean subject without duplicate dashes.
-
-    Supported examples:
-    - DB Weekly Opportunities & Risks
-      -> DB Weekly Opportunities & Risks — 01 July 2026
-
-    - DB Weekly Opportunities & Risks —
-      -> DB Weekly Opportunities & Risks — 01 July 2026
-
-    - DB Weekly Opportunities & Risks -
-      -> DB Weekly Opportunities & Risks — 01 July 2026
-
-    - DB Weekly Opportunities & Risks — {date}
-      -> DB Weekly Opportunities & Risks — 01 July 2026
-    """
     base_subject = os.environ.get(
         "DB_STRATEGY_WEEKLY_EMAIL_SUBJECT",
         "DB Strategy Weekly"
@@ -36,10 +20,12 @@ def build_subject():
     if today in base_subject:
         return base_subject
 
-    # Remove trailing separators so we add only one clean em dash.
     base_subject = base_subject.rstrip(" -–—")
-
     return f"{base_subject} — {today}"
+
+
+def split_emails(value):
+    return [x.strip() for x in value.split(",") if x.strip()]
 
 
 def main():
@@ -53,21 +39,35 @@ def main():
     sender = os.environ["DB_STRATEGY_WEEKLY_EMAIL_FROM"]
     subject = build_subject()
 
-    # Approval draft email: send only to approver.
-    # Final send BCC should be handled in the separate final-send email file/workflow.
-    approver = os.environ["DB_STRATEGY_WEEKLY_APPROVER_EMAIL"]
+    final_recipients = os.environ.get("DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO", "").strip()
+    approver = os.environ.get("DB_STRATEGY_WEEKLY_APPROVER_EMAIL", "").strip()
 
-    resend.Emails.send({
-        "from": sender,
-        "to": [x.strip() for x in approver.split(",") if x.strip()],
-        "subject": subject,
-        "html": html
-    })
+    if final_recipients:
+        resend.Emails.send({
+            "from": sender,
+            "to": ["updates@market-sigma.com"],
+            "bcc": split_emails(final_recipients),
+            "subject": subject,
+            "html": html
+        })
 
-    print(f"Sent '{subject}' to approver only")
+        print(f"Sent final article '{subject}' to BCC distribution list")
+
+    elif approver:
+        resend.Emails.send({
+            "from": sender,
+            "to": split_emails(approver),
+            "subject": subject,
+            "html": html
+        })
+
+        print(f"Sent draft approval '{subject}' to approver only")
+
+    else:
+        raise ValueError(
+            "No recipients found. Set either DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO or DB_STRATEGY_WEEKLY_APPROVER_EMAIL."
+        )
 
 
 if __name__ == "__main__":
     main()
-
-    
