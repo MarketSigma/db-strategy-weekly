@@ -243,9 +243,9 @@ Use this EXACT JSON structure:
   "opportunity": ["Short lead. One-sentence explanation.", "Short lead. One-sentence explanation."],
   "risk": ["Short lead. One-sentence explanation.", "Short lead. One-sentence explanation."],
   "strategic_options": [
-    {"recommendation": "...", "business_owner": "..."},
-    {"recommendation": "...", "business_owner": "..."},
-    {"recommendation": "...", "business_owner": "..."}
+    {{"recommendation": "...", "business_owner": "..."}},
+    {{"recommendation": "...", "business_owner": "..."}},
+    {{"recommendation": "...", "business_owner": "..."}}
   ]
 }}
 
