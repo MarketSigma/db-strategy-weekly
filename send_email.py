@@ -45,13 +45,12 @@ def main():
     if final_recipients:
         resend.Emails.send({
             "from": sender,
-            "to": ["updates@market-sigma.com"],
-            "bcc": split_emails(final_recipients),
+            "to": split_emails(final_recipients),
             "subject": subject,
             "html": html
         })
 
-        print(f"Sent final article '{subject}' to BCC distribution list")
+        print(f"Sent final article '{subject}' to final recipient list")
 
     elif approver:
         resend.Emails.send({
