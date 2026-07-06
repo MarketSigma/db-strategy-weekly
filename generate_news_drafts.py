@@ -4,6 +4,7 @@ import html
 import argparse
 import datetime
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse
 import feedparser
 import anthropic
 
@@ -21,17 +22,48 @@ BLUE = "#0072ce"
 SLATE = "#2c3e54"
 MUTED = "#8a99ad"
 
+# Expanded source list to improve weekly article variety.
+# Keep RSS sources only. If one source fails, the script continues with the rest.
 NEWS_SOURCES = [
+    # CNBC: business / world / finance
     "https://www.cnbc.com/id/10001147/device/rss/rss.html",
     "https://www.cnbc.com/id/10000664/device/rss/rss.html",
+    "https://www.cnbc.com/id/100727362/device/rss/rss.html",
+
+    # BBC: business / world
     "https://feeds.bbci.co.uk/news/business/rss.xml",
+    "https://feeds.bbci.co.uk/news/world/rss.xml",
+
+    # Al Jazeera: regional / global
     "https://www.aljazeera.com/xml/rss/all.xml",
+
+    # IMF / World Bank: macro, policy, sovereign and development themes
+    "https://www.imf.org/en/News/RSS",
+    "https://www.worldbank.org/en/news/all?format=rss",
+
+    # BIS: banking, monetary policy and regulation
+    "https://www.bis.org/rss/press_releases.xml",
+    "https://www.bis.org/rss/speeches.xml",
+
+    # Ratings / credit themes
+    "https://www.fitchratings.com/site/pr/rss",
+    "https://www.spglobal.com/ratings/en/rss",
+
+    # Markets / macro feeds
+    "https://www.investing.com/rss/news_25.rss",
+    "https://www.investing.com/rss/news_301.rss",
+    "https://www.investing.com/rss/news_285.rss",
+
+    # GCC / Qatar-oriented sources where RSS is available
+    "https://www.gulf-times.com/rss",
+    "https://thepeninsulaqatar.com/rss",
+    "https://www.arabnews.com/rss.xml",
 ]
 
 BLOCKED_TERMS = [
     "world cup", "football", "soccer", "sports", "match", "tournament",
     "weather", "sky turns", "episode", "podcast", "celebrity", "movie",
-    "music", "travel", "recipe"
+    "music", "travel", "recipe", "cricket", "tennis", "golf"
 ]
 
 REQUIRED_TERMS = [
@@ -40,8 +72,36 @@ REQUIRED_TERMS = [
     "market", "markets", "credit", "liquidity", "investment",
     "trade", "oil", "gas", "lng", "energy", "qatar", "gcc", "gulf",
     "saudi", "uae", "kuwait", "bahrain", "oman", "geopolitical",
-    "sovereign", "infrastructure"
+    "sovereign", "infrastructure", "regulation", "regulatory", "debt",
+    "bond", "bonds", "loan", "loans", "growth", "risk", "risks",
+    "sanctions", "shipping", "red sea", "supply chain", "real estate",
+    "project finance", "treasury", "digital banking", "fintech"
 ]
+
+CATEGORY_RULES = [
+    {
+        "topic_id": "1",
+        "category": "Geopolitical / Regional Risk",
+        "description": "Regional conflict, sanctions, shipping disruption, Gulf security, sovereign risk, trade corridor risk or regional stability."
+    },
+    {
+        "topic_id": "2",
+        "category": "Banking / Financial Sector Development",
+        "description": "Banking sector, liquidity, credit, deposits, fintech, digital banking, capital, ratings, asset quality or financial-sector competition."
+    },
+    {
+        "topic_id": "3",
+        "category": "Economic / Market / Regulatory Development",
+        "description": "Rates, inflation, GDP, oil and gas, fiscal policy, regulation, markets, investment flows or macro policy."
+    },
+]
+
+
+def clean_text(value):
+    value = str(value or "")
+    value = html.unescape(value)
+    value = value.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    return " ".join(value.split()).strip()
 
 
 def format_source_date(raw):
@@ -56,10 +116,19 @@ def format_source_date(raw):
         return raw
 
 
+def source_name_from_url(url):
+    try:
+        domain = urlparse(url).netloc.replace("www.", "")
+        return domain or "News source"
+    except Exception:
+        return "News source"
+
+
 def ask_claude(prompt, max_tokens=5000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
+        temperature=0.35,
         messages=[{"role": "user", "content": prompt}]
     )
     for block in response.content:
@@ -88,74 +157,142 @@ def is_relevant_news(title, summary):
     return True
 
 
-def fetch_news(max_items=35):
+def dedupe_key(link, title):
+    link = str(link or "").strip().lower()
+    if link:
+        return link.split("?")[0].rstrip("/")
+    return clean_text(title).lower()
+
+
+def fetch_news(max_items=80):
     items = []
+    seen = set()
+
     for url in NEWS_SOURCES:
-        feed = feedparser.parse(url)
-        for entry in feed.entries[:15]:
-            title = entry.get("title", "")
-            summary = entry.get("summary", "")
-            if not is_relevant_news(title, summary):
-                continue
-            published_raw = entry.get("published", "") or entry.get("updated", "")
-            items.append({
-                "title": title,
-                "summary": summary,
-                "link": entry.get("link", ""),
-                "source": feed.feed.get("title", "News source"),
-                "source_date": format_source_date(published_raw),
-            })
+        try:
+            feed = feedparser.parse(url)
+            feed_source_name = clean_text(feed.feed.get("title", "")) or source_name_from_url(url)
+
+            for entry in feed.entries[:25]:
+                title = clean_text(entry.get("title", ""))
+                summary = clean_text(entry.get("summary", ""))
+                link = entry.get("link", "")
+
+                if not title or not link:
+                    continue
+
+                key = dedupe_key(link, title)
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                if not is_relevant_news(title, summary):
+                    continue
+
+                published_raw = entry.get("published", "") or entry.get("updated", "")
+
+                items.append({
+                    "title": title,
+                    "summary": summary[:700],
+                    "link": link,
+                    "source": feed_source_name,
+                    "source_date": format_source_date(published_raw),
+                })
+
+        except Exception as e:
+            print(f"WARNING: Failed RSS source: {url}. Error: {e}")
+            continue
+
     return items[:max_items]
+
+
+def one_sentence(value):
+    text = clean_text(value)
+    if not text:
+        return ""
+    for sep in [". ", "! ", "? "]:
+        if sep in text:
+            return text.split(sep)[0].strip() + sep.strip()
+    return text[:220].strip()
 
 
 def fallback_topics(news_items):
     return [
         {
             "topic_id": "1",
-            "title": "Interest rate outlook and implications for Doha Bank margins",
-            "source_title": "Global interest rate and banking market developments",
+            "category": "Geopolitical / Regional Risk",
+            "title": "Regional risk and trade corridor disruption implications for Doha Bank",
+            "source_title": "Regional geopolitical and trade corridor developments",
             "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.cnbc.com/finance/",
+            "source_url": "https://www.aljazeera.com/economy/",
             "source_date": TODAY,
-            "why_it_matters": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
-            "potential_doha_bank_angle": "Assess deposit repricing, loan yield sensitivity, liquidity positioning and opportunities to protect margin."
+            "source_sentence": "Regional geopolitical developments can affect trade flows, client activity and risk sentiment across Gulf markets.",
+            "why_it_matters": "Regional risk can affect corporate confidence, trade finance flows, treasury positioning and risk appetite across Qatar and the wider GCC.",
+            "potential_doha_bank_angle": "Assess exposed corporate sectors, trade finance demand, cash management needs, liquidity buffers and client advisory opportunities."
         },
         {
             "topic_id": "2",
-            "title": "GCC liquidity and corporate credit demand",
+            "category": "Banking / Financial Sector Development",
+            "title": "GCC banking liquidity and corporate credit demand",
             "source_title": "Regional liquidity and corporate banking conditions",
             "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.cnbc.com/world/",
+            "source_url": "https://www.cnbc.com/finance/",
             "source_date": TODAY,
+            "source_sentence": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
             "why_it_matters": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
             "potential_doha_bank_angle": "Assess corporate lending opportunities, deposit mobilisation, sector exposure and relationship banking priorities."
         },
         {
             "topic_id": "3",
-            "title": "Energy market shifts and Qatar-linked business flows",
-            "source_title": "Energy market and LNG-related developments",
+            "category": "Economic / Market / Regulatory Development",
+            "title": "Interest rate outlook and implications for Doha Bank margins",
+            "source_title": "Global interest rate and banking market developments",
             "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.aljazeera.com/economy/",
+            "source_url": "https://www.cnbc.com/markets/",
             "source_date": TODAY,
-            "why_it_matters": "Energy market movements affect Qatar’s fiscal position, project activity, trade flows and business confidence.",
-            "potential_doha_bank_angle": "Assess opportunities in project finance, trade finance, contractor banking and treasury solutions for energy-linked clients."
+            "source_sentence": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
+            "why_it_matters": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
+            "potential_doha_bank_angle": "Assess deposit repricing, loan yield sensitivity, liquidity positioning and opportunities to protect margin."
         }
     ]
 
 
 def validate_topics(topics):
     valid = []
+    expected_categories = [rule["category"] for rule in CATEGORY_RULES]
+
     for idx, t in enumerate(topics, 1):
         title = str(t.get("title", ""))
         source_title = str(t.get("source_title", ""))
         combined = f"{title} {source_title}".lower()
+
         if any(term in combined for term in BLOCKED_TERMS):
             continue
         if not any(term in combined for term in REQUIRED_TERMS):
             continue
-        t["topic_id"] = str(idx)
+
+        if idx <= 3:
+            t["topic_id"] = str(idx)
+            t["category"] = t.get("category") or expected_categories[idx - 1]
+        else:
+            t["topic_id"] = str(idx)
+            t.setdefault("category", "Economic / Market / Regulatory Development")
+
         t.setdefault("source_date", TODAY)
+        t.setdefault("source_sentence", one_sentence(t.get("source_title", "")))
         valid.append(t)
+
+    if len(valid) >= 3:
+        # Enforce exact category labels and topic IDs in the final three options.
+        for idx, rule in enumerate(CATEGORY_RULES):
+            valid[idx]["topic_id"] = rule["topic_id"]
+            valid[idx]["category"] = rule["category"]
+            valid[idx]["source_sentence"] = one_sentence(
+                valid[idx].get("source_sentence")
+                or valid[idx].get("source_title")
+                or valid[idx].get("title")
+            )
+
     return valid
 
 
@@ -169,16 +306,31 @@ You are DB Strategy AI Analyst.
 
 Select exactly 3 strong weekly strategy article topics for {bank_name}.
 
+Mandatory topic variety:
+- Topic 1 must be category: Geopolitical / Regional Risk.
+- Topic 2 must be category: Banking / Financial Sector Development.
+- Topic 3 must be category: Economic / Market / Regulatory Development.
+
+Category definitions:
+{json.dumps(CATEGORY_RULES, ensure_ascii=False, indent=2)}
+
 Strict rules:
 - Topics must be relevant to Doha Bank.
+- Select exactly one topic from each category.
+- Do not select substantially similar topics.
+- Do not select all topics from the same geography, same sector or same driver of impact.
+- Avoid repeating common weekly themes such as interest rates, LNG, oil prices or GCC banking liquidity unless there is a clearly new development.
 - Prefer Qatar and GCC topics first, especially topics linked to Qatar banking, liquidity, credit demand, government spending, infrastructure, real estate, LNG, energy, trade, regulation, or GCC corporate activity.
-- A global topic may be selected only if it has a materially stronger and clearly explainable impact on Doha Bank than the available Qatar/GCC topics.
+- A global topic may be selected only if it has a materially stronger and clearly explainable impact on Doha Bank than available Qatar/GCC topics.
 - At least 2 of the 3 selected topics should be Qatar/GCC-focused when suitable Qatar/GCC news is available.
 - Do not select sports, entertainment, weather, lifestyle, podcasts, or generic human-interest stories.
-- Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, or trade-finance relevance.
+- Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, regulatory, geopolitical or trade-finance relevance.
 - Each topic must explain a specific opportunity or risk for Doha Bank.
 - Preserve source_date from the selected news item exactly.
-- If the available news is weak, prefer Qatar/GCC macro, banking, liquidity, energy or trade interpretation rather than random global stories.
+- Preserve source_name and source_url from the selected news item.
+- source_sentence must be only one sentence and must be taken from or closely paraphrased from the selected article title or summary.
+- The source_sentence is only a teaser. Do not write a full source summary.
+- If available news is weak, still maintain the three mandatory categories and choose the strongest strategic interpretation.
 
 Return only a valid JSON array. No markdown. No explanation.
 
@@ -186,11 +338,37 @@ Required structure:
 [
   {{
     "topic_id": "1",
+    "category": "Geopolitical / Regional Risk",
     "title": "...",
     "source_title": "...",
     "source_name": "...",
     "source_url": "...",
     "source_date": "...",
+    "source_sentence": "...",
+    "why_it_matters": "...",
+    "potential_doha_bank_angle": "..."
+  }},
+  {{
+    "topic_id": "2",
+    "category": "Banking / Financial Sector Development",
+    "title": "...",
+    "source_title": "...",
+    "source_name": "...",
+    "source_url": "...",
+    "source_date": "...",
+    "source_sentence": "...",
+    "why_it_matters": "...",
+    "potential_doha_bank_angle": "..."
+  }},
+  {{
+    "topic_id": "3",
+    "category": "Economic / Market / Regulatory Development",
+    "title": "...",
+    "source_title": "...",
+    "source_name": "...",
+    "source_url": "...",
+    "source_date": "...",
+    "source_sentence": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
   }}
@@ -228,11 +406,13 @@ def build_approval_email(drafts, approval_webhook_url):
     for draft in drafts:
         t = draft["topic"]
         topic_id = str(t.get("topic_id", ""))
+        category = str(t.get("category", ""))
         article_html = strip_outer_html(draft["html_file_content"])
         sections += f"""
 <tr>
 <td style="padding:24px 24px 10px 24px; border-top:2px solid #dbe5f0; background:#ffffff;">
   <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:{BLUE}; font-weight:bold;">Full article option {html.escape(topic_id)}</p>
+  <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; color:{SLATE}; font-weight:bold;">{html.escape(category)}</p>
   <h2 style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:24px; line-height:1.25; color:{NAVY};">{html.escape(t.get('title', ''))}</h2>
   <a href="{approval_webhook_url}?decision=approve&topic_id={html.escape(topic_id)}"
      style="display:inline-block; background-color:{BLUE}; color:#ffffff; text-decoration:none; padding:11px 18px; border-radius:5px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:bold;">
@@ -267,7 +447,7 @@ def build_approval_email(drafts, approval_webhook_url):
 {sections}
 <tr>
 <td style="padding:18px 34px 26px 34px; border-top:1px solid #e2e8f0;">
-  <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:{MUTED};">Generated from latest business, market, banking and macro news sources. Review before distribution.</p>
+  <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:{MUTED};">Generated from latest business, market, banking, regional-risk and macro news sources. Review before distribution.</p>
 </td>
 </tr>
 </table>
@@ -289,6 +469,8 @@ def main():
     approval_webhook_url = os.environ["APPROVAL_WEBHOOK_URL"]
 
     news = fetch_news()
+    print(f"Fetched {len(news)} relevant news items from expanded source list.")
+
     topics = ai_select_topics(news, args.bank)
     metrics = weekly.get_doha_bank_metrics(args.bank)
     impact_rules = weekly.load_impact_rules(args.impact_rules)
@@ -329,7 +511,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
 
     
