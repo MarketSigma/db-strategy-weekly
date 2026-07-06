@@ -58,7 +58,7 @@ subject = build_subject()
 
 resend.Emails.send({
     "from": sender,
-    "to": ["salam.majari@dohabank.com.qa"],  # or your preferred address
+    "to": ["updates@market-sigma.com"],  # or your preferred address
     "bcc": [x.strip() for x in bcc.split(",") if x.strip()],
     "subject": subject,
     "html": html
