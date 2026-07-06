@@ -242,7 +242,11 @@ Use this EXACT JSON structure:
   ],
   "opportunity": ["Short lead. One-sentence explanation.", "Short lead. One-sentence explanation."],
   "risk": ["Short lead. One-sentence explanation.", "Short lead. One-sentence explanation."],
-  "strategic_options": ["...", "...", "..."]
+  "strategic_options": [
+    {"recommendation": "...", "business_owner": "..."},
+    {"recommendation": "...", "business_owner": "..."},
+    {"recommendation": "...", "business_owner": "..."}
+  ]
 }}
 
 Global rules:
@@ -279,6 +283,11 @@ opportunity / risk:
 
 strategic_options:
 - 3 concrete, actionable recommendations for senior management.
+- Each item must include:
+  - recommendation: the action to take.
+  - business_owner: the suggested accountable department or executive owner.
+- Business owner must be a practical Doha Bank owner such as Treasury, Wholesale Banking, Retail Banking, Risk Management, Finance, Strategy, Operations, Digital Banking, Compliance, or ALM Committee.
+- Do not assign personal names.
 
 Selected topic:
 {json.dumps(topic, ensure_ascii=False)}
@@ -341,14 +350,33 @@ def build_final_email(topic, article):
     risk_html = points_html(article.get("risk", []))
 
     options = ""
-    for i, o in enumerate(article.get("strategic_options", []), 1):
-        pad = "2px 0 0 4px" if i == len(article.get("strategic_options", [])) else "2px 0 13px 4px"
-        badge_pad = "" if i == len(article.get("strategic_options", [])) else "padding-bottom:13px;"
+    strategic_options = article.get("strategic_options", [])
+
+    for i, o in enumerate(strategic_options, 1):
+        badge_pad = "" if i == len(strategic_options) else "padding-bottom:16px;"
+
+        if isinstance(o, dict):
+            recommendation = html.escape(str(o.get("recommendation", "")).strip())
+            owner = html.escape(str(o.get("business_owner", "")).strip())
+        else:
+            # Backward compatibility in case the AI returns the old string format.
+            recommendation = html.escape(str(o).strip())
+            owner = ""
+
+        owner_html = ""
+        if owner:
+            owner_html = f"""
+            <div style="margin-top:7px; font-family:Arial,sans-serif; font-size:12px; line-height:1.4; color:{GREY};">
+              <strong style="color:{NAVY};">Suggested business owner:</strong> {owner}
+            </div>"""
 
         options += f"""
 <tr>
 <td width="34" valign="top" style="{badge_pad} padding-top:1px;"><div style="width:23px; height:23px; background-color:{BLUE}; border-radius:12px; color:#ffffff; font-family:Arial,sans-serif; font-size:12px; font-weight:bold; text-align:center; line-height:23px;">{i}</div></td>
-<td valign="top" style="font-family:Arial,sans-serif; font-size:15px; line-height:1.5; color:{SLATE}; padding:0 0 12px 6px;">{html.escape(str(o))}</td>
+<td valign="top" style="font-family:Arial,sans-serif; font-size:15px; line-height:1.5; color:{SLATE}; padding:0 0 16px 6px;">
+  <div>{recommendation}</div>
+  {owner_html}
+</td>
 </tr>"""
 
     impact_paras = ""
@@ -395,8 +423,8 @@ def build_final_email(topic, article):
 </style>
 </head>
 <body style="margin:0; padding:0; background-color:#e7ecf3; font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#e7ecf3; padding:32px 12px;"><tr><td align="center">
-<table role="presentation" width="640" cellpadding="0" cellspacing="0" class="container" style="width:640px; max-width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 6px 26px rgba(0,25,70,0.12);">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#e7ecf3; padding:32px 24px;"><tr><td align="center">
+<table role="presentation" width="760" cellpadding="0" cellspacing="0" class="container" style="width:760px; max-width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 6px 26px rgba(0,25,70,0.12);">
 
   <tr><td style="height:3px; background-color:{BLUE}; font-size:0; line-height:0;">&nbsp;</td></tr>
 
@@ -499,4 +527,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
+
     
