@@ -171,11 +171,14 @@ Select exactly 3 strong weekly strategy article topics for {bank_name}.
 
 Strict rules:
 - Topics must be relevant to Doha Bank.
+- Prefer Qatar and GCC topics first, especially topics linked to Qatar banking, liquidity, credit demand, government spending, infrastructure, real estate, LNG, energy, trade, regulation, or GCC corporate activity.
+- A global topic may be selected only if it has a materially stronger and clearly explainable impact on Doha Bank than the available Qatar/GCC topics.
+- At least 2 of the 3 selected topics should be Qatar/GCC-focused when suitable Qatar/GCC news is available.
 - Do not select sports, entertainment, weather, lifestyle, podcasts, or generic human-interest stories.
 - Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, or trade-finance relevance.
 - Each topic must explain a specific opportunity or risk for Doha Bank.
 - Preserve source_date from the selected news item exactly.
-- If the available news is weak, prefer macro/banking/energy interpretation rather than random stories.
+- If the available news is weak, prefer Qatar/GCC macro, banking, liquidity, energy or trade interpretation rather than random global stories.
 
 Return only a valid JSON array. No markdown. No explanation.
 
@@ -326,5 +329,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
