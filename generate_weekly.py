@@ -256,8 +256,18 @@ Global rules:
 - Never write "not available".
 
 source_summary:
-- Maximum 2 sentences.
-- Do not retell the article; assume the reader can open the Read more link.
+- This field appears under "This Week's Source".
+- Use only text from the original source article or RSS feed.
+- Do NOT summarize.
+- Do NOT rewrite.
+- Do NOT paraphrase.
+- Do NOT add analysis.
+- Select exactly ONE sentence only.
+- Maximum 35 words.
+- Preserve the original wording.
+- Prefer source_excerpt if available.
+- Prefer source_description if available.
+- Never generate a new summary when source text exists.
 
 doha_bank_impact:
 - One to two short paragraphs.
@@ -291,6 +301,11 @@ strategic_options:
 
 Selected topic:
 {json.dumps(topic, ensure_ascii=False)}
+Source text rules:
+- If source_excerpt exists, use it directly for source_summary.
+- Otherwise use source_description.
+- Otherwise use the first sentence of the source text provided.
+- Never create an AI-written summary when source text is available.
 
 Impact rules:
 {json.dumps(impact_rules, ensure_ascii=False)}
