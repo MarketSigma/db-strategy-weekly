@@ -122,45 +122,53 @@ def source_name_from_url(url):
         return "News source"
 
 
-def ask_claude(prompt, max_tokens=9000):
+def ask_claude(prompt, max_tokens=12000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}]
     )
+
     for block in response.content:
         if getattr(block, "type", None) == "text":
             return block.text.strip()
+
     raise ValueError("Claude returned no text block")
 
 
 def extract_json_array(text):
     text = text.strip()
+
     if text.startswith("```"):
         text = text.replace("```json", "").replace("```JSON", "").replace("```", "").strip()
 
     start = text.find("[")
     end = text.rfind("]")
 
-    if start == -1 or end == -1:
-        raise ValueError(f"No JSON array found in Claude response. Response was: {text[:1000]}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError(f"No complete JSON array found in Claude response. Response was: {text[:1000]}")
 
     return json.loads(text[start:end + 1])
 
 
 def is_relevant_news(title, summary):
     combined = f"{title} {summary}".lower()
+
     if any(term in combined for term in BLOCKED_TERMS):
         return False
+
     if not any(term in combined for term in REQUIRED_TERMS):
         return False
+
     return True
 
 
 def dedupe_key(link, title):
     link = str(link or "").strip().lower()
+
     if link:
         return link.split("?")[0].rstrip("/")
+
     return clean_text(title).lower()
 
 
@@ -184,6 +192,7 @@ def fetch_news(max_items=100):
                 key = dedupe_key(link, title)
                 if key in seen:
                     continue
+
                 seen.add(key)
 
                 if not is_relevant_news(title, summary):
@@ -193,7 +202,7 @@ def fetch_news(max_items=100):
 
                 items.append({
                     "title": title,
-                    "summary": summary[:700],
+                    "summary": summary[:1200],
                     "link": link,
                     "source": feed_source_name,
                     "source_date": format_source_date(published_raw),
@@ -205,7 +214,8 @@ def fetch_news(max_items=100):
 
     return items[:max_items]
 
-def article_excerpt(value, max_chars=320):
+
+def article_excerpt(value, max_chars=420):
     text = clean_text(value)
 
     if not text:
@@ -215,12 +225,12 @@ def article_excerpt(value, max_chars=320):
         return text
 
     excerpt = text[:max_chars]
-
     last_period = excerpt.rfind(".")
-    if last_period > 150:
+
+    if last_period > 180:
         return excerpt[:last_period + 1]
 
-    return excerpt + "..."
+    return excerpt.rstrip() + "..."
 
 
 def fallback_topics(news_items):
@@ -307,10 +317,12 @@ def validate_topics(topics):
     for idx, t in enumerate(topics, 1):
         title = str(t.get("title", ""))
         source_title = str(t.get("source_title", ""))
-        combined = f"{title} {source_title}".lower()
+        source_excerpt = str(t.get("source_excerpt", ""))
+        combined = f"{title} {source_title} {source_excerpt}".lower()
 
         if any(term in combined for term in BLOCKED_TERMS):
             continue
+
         if not any(term in combined for term in REQUIRED_TERMS):
             continue
 
@@ -322,14 +334,19 @@ def validate_topics(topics):
             t.setdefault("category", "Economic / Market / Regulatory Development")
 
         t.setdefault("source_date", TODAY)
-        t.setdefault("source_excerpt", one_sentence(t.get("source_title", "")))
+
+        if not t.get("source_excerpt"):
+            t["source_excerpt"] = article_excerpt(t.get("source_title", "") or t.get("title", ""))
+
+        t["source_excerpt"] = article_excerpt(t.get("source_excerpt", ""))
+
         valid.append(t)
 
     if len(valid) >= 6:
         for idx, rule in enumerate(CATEGORY_RULES):
             valid[idx]["topic_id"] = rule["topic_id"]
             valid[idx]["category"] = rule["category"]
-            valid[idx]["source_excerpt"] = one_sentence(
+            valid[idx]["source_excerpt"] = article_excerpt(
                 valid[idx].get("source_excerpt")
                 or valid[idx].get("source_title")
                 or valid[idx].get("title")
@@ -373,11 +390,14 @@ Strict rules:
 - Each topic must explain a specific opportunity or risk for Doha Bank.
 - Preserve source_date from the selected news item exactly.
 - Preserve source_name and source_url from the selected news item.
-- source_excerpt must be only one sentence and must be taken from or closely paraphrased from the selected article title or summary.
-- The source_excerpt is only a teaser. Do not write a full source summary.
+- source_excerpt must be taken from the selected news item's summary where available.
+- source_excerpt should be 2 to 3 sentences where possible, up to 420 characters.
+- Do not invent source_excerpt.
+- If summary is too short, use the article title as support.
 - If available news is weak, still maintain the six mandatory categories and choose the strongest strategic interpretation.
 
 Return only a valid JSON array. No markdown. No explanation.
+The response must start with [ and end with ].
 
 Required structure:
 [
@@ -458,13 +478,24 @@ Required structure:
 Relevant news only:
 {json.dumps(news_items, ensure_ascii=False)}
 """
+
     try:
         text = ask_claude(prompt)
         topics = validate_topics(extract_json_array(text))
+
         if len(topics) < 6:
-            print("WARNING: Claude returned weak or irrelevant topics. Using strategic fallback topics.")
-            return fallback_topics(news_items)
+            print(f"WARNING: Claude returned only {len(topics)} valid topics. Filling remaining topics with fallback.")
+            fallback = fallback_topics(news_items)
+
+            existing_ids = {str(t.get("topic_id")) for t in topics}
+            for fb in fallback:
+                if str(fb.get("topic_id")) not in existing_ids:
+                    topics.append(fb)
+                if len(topics) >= 6:
+                    break
+
         return topics[:6]
+
     except Exception as e:
         print(f"WARNING: Claude topic generation failed. Using strategic fallback topics. Error: {e}")
         return fallback_topics(news_items)
@@ -473,16 +504,20 @@ Relevant news only:
 def strip_outer_html(full_html):
     lower = full_html.lower()
     body_start = lower.find("<body")
+
     if body_start != -1:
         body_start = lower.find(">", body_start)
         body_end = lower.rfind("</body>")
+
         if body_start != -1 and body_end != -1:
             return full_html[body_start + 1:body_end]
+
     return full_html
 
 
 def build_approval_email(drafts, approval_webhook_url):
     sections = ""
+
     for draft in drafts:
         t = draft["topic"]
         topic_id = str(t.get("topic_id", ""))
@@ -495,6 +530,9 @@ def build_approval_email(drafts, approval_webhook_url):
   <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:{BLUE}; font-weight:bold;">Full article option {html.escape(topic_id)}</p>
   <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; color:{SLATE}; font-weight:bold;">{html.escape(category)}</p>
   <h2 style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:24px; line-height:1.25; color:{NAVY};">{html.escape(t.get('title', ''))}</h2>
+  <p style="margin:0 0 12px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.55; color:{SLATE};">
+    <strong>Source excerpt:</strong> {html.escape(t.get('source_excerpt', ''))}
+  </p>
   <a href="{approval_webhook_url}?decision=approve&topic_id={html.escape(topic_id)}"
      style="display:inline-block; background-color:{BLUE}; color:#ffffff; text-decoration:none; padding:11px 18px; border-radius:5px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:bold;">
     Approve and send this exact article
@@ -583,6 +621,7 @@ def main():
         json.dump(topics_for_json, f, ensure_ascii=False, indent=2)
 
     approval_html = build_approval_email(drafts, approval_webhook_url)
+
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(approval_html)
 
