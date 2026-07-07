@@ -41,6 +41,7 @@ jobs:
           DB_STRATEGY_WEEKLY_RESEND_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_RESEND_API_KEY }}
           DB_STRATEGY_WEEKLY_EMAIL_FROM: ${{ secrets.DB_STRATEGY_WEEKLY_EMAIL_FROM }}
           DB_STRATEGY_WEEKLY_APPROVER_EMAIL: ${{ secrets.DB_STRATEGY_WEEKLY_APPROVER_EMAIL }}
+          DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO: ""
           DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: Approval Required — DB Strategy Weekly
         run: |
           python send_email.py drafts.html
