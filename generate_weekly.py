@@ -24,6 +24,81 @@ SLATE = "#2c3e54"
 MUTED = "#8a99ad"
 GREY = "#7a8aa0"
 
+METRIC_LABELS = {
+    "customer_deposits": "Customer Deposits",
+    "net_loans": "Net Loans",
+    "loan_deposit_ratio_pct": "Loan-to-Deposit Ratio",
+    "total_assets": "Total Assets",
+    "net_profit": "Net Profit",
+    "shareholders_equity": "Shareholders’ Equity",
+    "equity": "Equity",
+    "total_income": "Total Income",
+    "operating_income": "Operating Income",
+    "operating_expenses": "Operating Expenses",
+    "cost_income_ratio_pct": "Cost-to-Income Ratio",
+    "npl_ratio_pct": "NPL Ratio",
+    "capital_adequacy_ratio_pct": "Capital Adequacy Ratio",
+    "return_on_assets_pct": "Return on Assets",
+    "return_on_equity_pct": "Return on Equity",
+    "roa_pct": "Return on Assets",
+    "roe_pct": "Return on Equity",
+    "net_interest_income": "Net Interest Income",
+    "net_interest_margin_pct": "Net Interest Margin",
+    "nim_pct": "Net Interest Margin",
+    "total_liabilities": "Total Liabilities",
+    "total_revenue": "Total Revenue",
+    "earnings_per_share": "Earnings per Share",
+    "eps": "Earnings per Share",
+}
+
+RAW_METRIC_CODE_PATTERN = re.compile(r"\b[a-z]+(?:_[a-z0-9]+)+\b")
+
+
+def clean_metric_label(row):
+    """Return a human-friendly label and prevent raw database metric codes leaking."""
+    code = str(row.get("metric_code") or "").strip()
+    name = str(row.get("metric_name") or "").strip()
+
+    if code in METRIC_LABELS:
+        return METRIC_LABELS[code]
+
+    if name and not RAW_METRIC_CODE_PATTERN.search(name):
+        return name
+
+    if name in METRIC_LABELS:
+        return METRIC_LABELS[name]
+
+    if code:
+        return code.replace("_pct", "").replace("_", " ").title()
+
+    return "Metric"
+
+
+def remove_raw_metric_codes_from_text(value):
+    """Clean any accidental metric-code leakage from AI output."""
+    text = str(value or "")
+
+    for code, label in METRIC_LABELS.items():
+        text = text.replace(code, label)
+
+    # Final generic cleanup for any remaining snake_case text.
+    def repl(match):
+        code = match.group(0)
+        return code.replace("_pct", "").replace("_", " ").title()
+
+    return RAW_METRIC_CODE_PATTERN.sub(repl, text)
+
+
+def sanitize_article(article):
+    """Recursively clean article output before rendering email."""
+    if isinstance(article, dict):
+        return {k: sanitize_article(v) for k, v in article.items()}
+    if isinstance(article, list):
+        return [sanitize_article(v) for v in article]
+    if isinstance(article, str):
+        return remove_raw_metric_codes_from_text(article)
+    return article
+
 
 def ask_claude(prompt, max_tokens=5000):
     strict_prompt = prompt + """
@@ -196,6 +271,8 @@ def format_metrics_for_ai(metrics):
         "- Do not convert them again.",
         "- Do not use k or raw thousand values.",
         "- Use only these displayed values for Doha Bank reported financials.",
+        "- Never display raw database metric codes such as customer_deposits, net_loans, or loan_deposit_ratio_pct.",
+        "- Always use the clean metric labels shown below.",
         ""
     ]
 
@@ -205,16 +282,12 @@ def format_metrics_for_ai(metrics):
         lines.append("")
 
     for m in metrics:
-        metric_name = m.get("metric_name") or m.get("metric_code") or "Metric"
-        metric_code = m.get("metric_code") or ""
+        metric_name = clean_metric_label(m)
         period_end = m.get("period_end") or ""
         category = m.get("metric_category") or ""
         value = format_metric_value(m)
 
-        line = f"- {metric_name}"
-        if metric_code:
-            line += f" ({metric_code})"
-        line += f": {value}"
+        line = f"- {metric_name}: {value}"
 
         if period_end:
             line += f" | period: {period_end}"
@@ -267,6 +340,8 @@ Global rules:
 - Only use Doha Bank figures present in the Supabase data below.
 - If a metric or prior period is missing, use an empty string "" for that value.
 - Never write "not available".
+- Never display raw database metric codes such as customer_deposits, net_loans, loan_deposit_ratio_pct, total_assets, net_profit, cost_income_ratio_pct, or capital_adequacy_ratio_pct.
+- Always use clean business metric labels such as Customer Deposits, Net Loans, Loan-to-Deposit Ratio, Total Assets, Net Profit, Cost-to-Income Ratio, and Capital Adequacy Ratio.
 
 source_summary:
 - This field appears under "This Week's Source".
@@ -297,6 +372,7 @@ impact_table:
 - projected_value = reasoned estimate after the development plays out.
 - change = movement from current to projected.
 - Do not include a metric if the development does not plausibly move it.
+- The metric field must contain only clean business labels, never snake_case database codes.
 
 opportunity / risk:
 - 1 to 2 items each.
@@ -336,17 +412,17 @@ Strict financial data rules:
 """
 
     text = ask_claude(prompt)
-    return extract_json_object(text)
+    return sanitize_article(extract_json_object(text))
 
 
 def build_final_email(topic, article):
     rows = ""
 
     for idx, r in enumerate(article.get("impact_table", [])):
-        metric = html.escape(safe_get(r, "metric", "line_item"))
-        curr = html.escape(safe_get(r, "current_value", "current", default="—") or "—")
-        proj = html.escape(safe_get(r, "projected_value", "projected", default="—") or "—")
-        change = safe_get(r, "change", default="")
+        metric = html.escape(remove_raw_metric_codes_from_text(safe_get(r, "metric", "line_item")))
+        curr = html.escape(remove_raw_metric_codes_from_text(safe_get(r, "current_value", "current", default="—") or "—"))
+        proj = html.escape(remove_raw_metric_codes_from_text(safe_get(r, "projected_value", "projected", default="—") or "—"))
+        change = remove_raw_metric_codes_from_text(safe_get(r, "change", default=""))
         change_cell = html.escape(change) if change else "—"
         row_bg = "#ffffff" if idx % 2 == 0 else "#f7fafd"
 
@@ -362,7 +438,7 @@ def build_final_email(topic, article):
         out = ""
 
         for i, it in enumerate(items):
-            lead, rest = split_lead(it)
+            lead, rest = split_lead(remove_raw_metric_codes_from_text(it))
             mb = "0" if i == len(items) - 1 else "0 0 10px 0"
 
             if rest:
@@ -384,11 +460,11 @@ def build_final_email(topic, article):
         badge_pad = "" if i == len(strategic_options) else "padding-bottom:16px;"
 
         if isinstance(o, dict):
-            recommendation = html.escape(str(o.get("recommendation", "")).strip())
+            recommendation = html.escape(remove_raw_metric_codes_from_text(str(o.get("recommendation", "")).strip()))
             owner = html.escape(str(o.get("business_owner", "")).strip())
         else:
             # Backward compatibility in case the AI returns the old string format.
-            recommendation = html.escape(str(o).strip())
+            recommendation = html.escape(remove_raw_metric_codes_from_text(str(o).strip()))
             owner = ""
 
         owner_html = ""
@@ -408,7 +484,7 @@ def build_final_email(topic, article):
 </tr>"""
 
     impact_paras = ""
-    impact_text = str(article.get("doha_bank_impact", "")).replace("\\n", "\n")
+    impact_text = remove_raw_metric_codes_from_text(str(article.get("doha_bank_impact", "")).replace("\\n", "\n"))
 
     for para in [p for p in impact_text.split("\n") if p.strip()]:
         impact_paras += f'<p class="body-text" style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:15px; line-height:1.65; color:{SLATE};">{html.escape(para.strip())}</p>'
@@ -422,7 +498,7 @@ def build_final_email(topic, article):
     if source_date:
         source_meta += f' &nbsp;&middot;&nbsp; {source_date}'
 
-    source_summary_raw = str(article.get("source_summary", "")).strip()
+    source_summary_raw = remove_raw_metric_codes_from_text(str(article.get("source_summary", "")).strip())
     if source_summary_raw and not source_summary_raw.endswith(("…", "...")):
         source_summary_raw = source_summary_raw.rstrip(".") + "…"
 
@@ -555,6 +631,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
 
     
