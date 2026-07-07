@@ -25,7 +25,23 @@ def build_subject():
 
 
 def split_emails(value):
-    return [x.strip() for x in value.split(",") if x.strip()]
+    emails = []
+    seen = set()
+
+    for x in value.split(","):
+        email = x.strip()
+        key = email.lower()
+
+        if email and key not in seen:
+            emails.append(email)
+            seen.add(key)
+
+    return emails
+
+
+def remove_overlap(bcc_list, to_list):
+    to_set = {x.lower() for x in to_list}
+    return [x for x in bcc_list if x.lower() not in to_set]
 
 
 def main():
@@ -39,26 +55,32 @@ def main():
     sender = os.environ["DB_STRATEGY_WEEKLY_EMAIL_FROM"]
     subject = build_subject()
 
-    final_recipients = os.environ.get("DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO", "").strip()
-    approver = os.environ.get("DB_STRATEGY_WEEKLY_APPROVER_EMAIL", "").strip()
+    final_recipients_raw = os.environ.get("DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO", "").strip()
+    approver_raw = os.environ.get("DB_STRATEGY_WEEKLY_APPROVER_EMAIL", "").strip()
+
+    final_recipients = split_emails(final_recipients_raw)
+    approver = split_emails(approver_raw)
 
     if final_recipients:
-        to_recipients = split_emails(approver) if approver else [sender]
+        to_recipients = approver if approver else [sender]
+        bcc_recipients = remove_overlap(final_recipients, to_recipients)
 
         resend.Emails.send({
             "from": sender,
             "to": to_recipients,
-            "bcc": split_emails(final_recipients),
+            "bcc": bcc_recipients,
             "subject": subject,
             "html": html
         })
 
-        print(f"Sent final article '{subject}' to approver/sender in To and final recipients in BCC")
+        print(f"Sent final article '{subject}'")
+        print(f"To: {to_recipients}")
+        print(f"BCC: {bcc_recipients}")
 
     elif approver:
         resend.Emails.send({
             "from": sender,
-            "to": split_emails(approver),
+            "to": approver,
             "subject": subject,
             "html": html
         })
