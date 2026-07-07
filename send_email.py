@@ -43,14 +43,17 @@ def main():
     approver = os.environ.get("DB_STRATEGY_WEEKLY_APPROVER_EMAIL", "").strip()
 
     if final_recipients:
+        to_recipients = split_emails(approver) if approver else [sender]
+
         resend.Emails.send({
             "from": sender,
-            "to": split_emails(final_recipients),
+            "to": to_recipients,
+            "bcc": split_emails(final_recipients),
             "subject": subject,
             "html": html
         })
 
-        print(f"Sent final article '{subject}' to final recipient list")
+        print(f"Sent final article '{subject}' to approver/sender in To and final recipients in BCC")
 
     elif approver:
         resend.Emails.send({
