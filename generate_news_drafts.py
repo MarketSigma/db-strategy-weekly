@@ -122,7 +122,7 @@ def source_name_from_url(url):
         return "News source"
 
 
-def ask_claude(prompt, max_tokens=5000):
+def ask_claude(prompt, max_tokens=9000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
