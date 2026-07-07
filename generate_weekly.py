@@ -26,10 +26,25 @@ GREY = "#7a8aa0"
 
 
 def ask_claude(prompt, max_tokens=5000):
+    strict_prompt = prompt + """
+
+IMPORTANT OUTPUT RULES:
+Return ONLY valid JSON.
+Do not include markdown.
+Do not include ```json fences.
+Do not include explanation before or after the JSON.
+The response must start with { and end with }.
+Use double quotes for all JSON keys and string values.
+Escape all internal quotes inside strings.
+Do not use trailing commas.
+Do not output arrays unless the requested field itself is an array.
+"""
+
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}]
+        temperature=0,
+        messages=[{"role": "user", "content": strict_prompt}]
     )
 
     for block in response.content:
