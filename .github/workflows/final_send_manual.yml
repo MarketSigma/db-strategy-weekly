@@ -8,10 +8,6 @@ on:
         required: true
         default: "1"
 
-permissions:
-  contents: read
-  actions: read
-  
 jobs:
   final-send:
     runs-on: ubuntu-latest
@@ -26,27 +22,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Download latest draft artifacts
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: weekly_draft.yml
-          name: db-strategy-weekly-drafts
-          path: .
-
-      - name: Confirm approved article file exists
+      - name: Generate final article
+        env:
+          TOPIC_ID: ${{ github.event.inputs.topic_id }}
+          SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: sonnet-4-6
         run: |
-          ls -la
-          cat drafts.json
-          test -f "strategy_weekly_option_${{ github.event.inputs.topic_id }}.html"
-          cp "strategy_weekly_option_${{ github.event.inputs.topic_id }}.html" strategy_weekly_final.html
+          python generate_weekly.py --topic-id "${{ github.event.inputs.topic_id }}" --drafts-json drafts.json --out strategy_weekly_final.html --bank "Doha Bank"
 
       - name: Send final article
         env:
           DB_STRATEGY_WEEKLY_RESEND_API_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_RESEND_API_KEY }}
           DB_STRATEGY_WEEKLY_EMAIL_FROM: ${{ secrets.DB_STRATEGY_WEEKLY_EMAIL_FROM }}
+          DB_STRATEGY_WEEKLY_APPROVER_EMAIL: ${{ secrets.DB_STRATEGY_WEEKLY_APPROVER_EMAIL }}
           DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO: ${{ secrets.DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO }}
-          DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: DB Weekly Opportunities & Risks — ${{ github.run_started_at }}
+          DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: DB Strategy Weekly
         run: |
           python send_email.py strategy_weekly_final.html
-
-    
