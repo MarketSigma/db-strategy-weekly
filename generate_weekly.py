@@ -37,13 +37,11 @@ The response must start with { and end with }.
 Use double quotes for all JSON keys and string values.
 Escape all internal quotes inside strings.
 Do not use trailing commas.
-Do not output arrays unless the requested field itself is an array.
 """
 
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
-        temperature=0,
         messages=[{"role": "user", "content": strict_prompt}]
     )
 
