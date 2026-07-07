@@ -22,39 +22,22 @@ BLUE = "#0072ce"
 SLATE = "#2c3e54"
 MUTED = "#8a99ad"
 
-# Expanded source list to improve weekly article variety.
-# Keep RSS sources only. If one source fails, the script continues with the rest.
 NEWS_SOURCES = [
-    # CNBC: business / world / finance
     "https://www.cnbc.com/id/10001147/device/rss/rss.html",
     "https://www.cnbc.com/id/10000664/device/rss/rss.html",
-    "https://www.cnbc.com/id/100727362/device/rss/rss.html",
-
-    # BBC: business / world
+    "https://www.cnbc.com/id/10072762/device/rss/rss.html",
     "https://feeds.bbci.co.uk/news/business/rss.xml",
     "https://feeds.bbci.co.uk/news/world/rss.xml",
-
-    # Al Jazeera: regional / global
     "https://www.aljazeera.com/xml/rss/all.xml",
-
-    # IMF / World Bank: macro, policy, sovereign and development themes
     "https://www.imf.org/en/News/RSS",
     "https://www.worldbank.org/en/news/all?format=rss",
-
-    # BIS: banking, monetary policy and regulation
     "https://www.bis.org/rss/press_releases.xml",
     "https://www.bis.org/rss/speeches.xml",
-
-    # Ratings / credit themes
     "https://www.fitchratings.com/site/pr/rss",
     "https://www.spglobal.com/ratings/en/rss",
-
-    # Markets / macro feeds
     "https://www.investing.com/rss/news_25.rss",
     "https://www.investing.com/rss/news_301.rss",
     "https://www.investing.com/rss/news_285.rss",
-
-    # GCC / Qatar-oriented sources where RSS is available
     "https://www.gulf-times.com/rss",
     "https://thepeninsulaqatar.com/rss",
     "https://www.arabnews.com/rss.xml",
@@ -75,7 +58,8 @@ REQUIRED_TERMS = [
     "sovereign", "infrastructure", "regulation", "regulatory", "debt",
     "bond", "bonds", "loan", "loans", "growth", "risk", "risks",
     "sanctions", "shipping", "red sea", "supply chain", "real estate",
-    "project finance", "treasury", "digital banking", "fintech"
+    "project finance", "treasury", "digital banking", "fintech",
+    "corporate banking", "wholesale banking", "payments", "cash management"
 ]
 
 CATEGORY_RULES = [
@@ -94,6 +78,21 @@ CATEGORY_RULES = [
         "category": "Economic / Market / Regulatory Development",
         "description": "Rates, inflation, GDP, oil and gas, fiscal policy, regulation, markets, investment flows or macro policy."
     },
+    {
+        "topic_id": "4",
+        "category": "Qatar / GCC Business Opportunity",
+        "description": "Qatar or GCC business growth, infrastructure, government spending, corporate expansion, real estate, LNG, tourism or investment opportunities."
+    },
+    {
+        "topic_id": "5",
+        "category": "Technology / Digital Banking / Fintech",
+        "description": "Digital banking, fintech, payments, AI, cybersecurity, open banking, customer experience or banking technology trends."
+    },
+    {
+        "topic_id": "6",
+        "category": "Corporate / Wholesale Banking Opportunity",
+        "description": "Corporate banking, wholesale banking, trade finance, cash management, project finance, treasury solutions or sector-specific client opportunities."
+    },
 ]
 
 
@@ -105,7 +104,6 @@ def clean_text(value):
 
 
 def format_source_date(raw):
-    """Return RSS dates as '7 July 2026' for display next to source name."""
     raw = str(raw or "").strip()
     if not raw:
         return ""
@@ -140,10 +138,13 @@ def extract_json_array(text):
     text = text.strip()
     if text.startswith("```"):
         text = text.replace("```json", "").replace("```JSON", "").replace("```", "").strip()
+
     start = text.find("[")
     end = text.rfind("]")
+
     if start == -1 or end == -1:
         raise ValueError(f"No JSON array found in Claude response. Response was: {text[:1000]}")
+
     return json.loads(text[start:end + 1])
 
 
@@ -163,7 +164,7 @@ def dedupe_key(link, title):
     return clean_text(title).lower()
 
 
-def fetch_news(max_items=80):
+def fetch_news(max_items=100):
     items = []
     seen = set()
 
@@ -172,7 +173,7 @@ def fetch_news(max_items=80):
             feed = feedparser.parse(url)
             feed_source_name = clean_text(feed.feed.get("title", "")) or source_name_from_url(url)
 
-            for entry in feed.entries[:25]:
+            for entry in feed.entries[:30]:
                 title = clean_text(entry.get("title", ""))
                 summary = clean_text(entry.get("summary", ""))
                 link = entry.get("link", "")
@@ -252,6 +253,42 @@ def fallback_topics(news_items):
             "source_sentence": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
             "why_it_matters": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
             "potential_doha_bank_angle": "Assess deposit repricing, loan yield sensitivity, liquidity positioning and opportunities to protect margin."
+        },
+        {
+            "topic_id": "4",
+            "category": "Qatar / GCC Business Opportunity",
+            "title": "Qatar and GCC investment activity as a business opportunity for Doha Bank",
+            "source_title": "Qatar and GCC investment activity",
+            "source_name": "Fallback Strategy Topic",
+            "source_url": "https://thepeninsulaqatar.com/",
+            "source_date": TODAY,
+            "source_sentence": "Qatar and GCC investment activity can create new lending, advisory and transaction banking opportunities.",
+            "why_it_matters": "Investment activity supports corporate expansion, project finance, cash management and deposit opportunities.",
+            "potential_doha_bank_angle": "Identify sectors with rising funding needs and strengthen targeted corporate coverage."
+        },
+        {
+            "topic_id": "5",
+            "category": "Technology / Digital Banking / Fintech",
+            "title": "Digital banking and fintech trends shaping customer expectations",
+            "source_title": "Digital banking and fintech developments",
+            "source_name": "Fallback Strategy Topic",
+            "source_url": "https://www.bis.org/",
+            "source_date": TODAY,
+            "source_sentence": "Digital banking and fintech developments are reshaping customer expectations and competitive positioning.",
+            "why_it_matters": "Digital capability affects customer retention, fee income, cost efficiency and competitive differentiation.",
+            "potential_doha_bank_angle": "Assess digital product gaps, payment opportunities, customer migration and efficiency initiatives."
+        },
+        {
+            "topic_id": "6",
+            "category": "Corporate / Wholesale Banking Opportunity",
+            "title": "Corporate banking opportunities from trade finance and cash management demand",
+            "source_title": "Corporate banking and transaction banking developments",
+            "source_name": "Fallback Strategy Topic",
+            "source_url": "https://www.cnbc.com/finance/",
+            "source_date": TODAY,
+            "source_sentence": "Corporate banking demand can create opportunities in trade finance, treasury and cash management services.",
+            "why_it_matters": "Wholesale banking opportunities support fee income, deposit mobilisation and relationship-led growth.",
+            "potential_doha_bank_angle": "Prioritise corporate clients with rising trade, liquidity and treasury management needs."
         }
     ]
 
@@ -270,9 +307,9 @@ def validate_topics(topics):
         if not any(term in combined for term in REQUIRED_TERMS):
             continue
 
-        if idx <= 3:
+        if idx <= len(CATEGORY_RULES):
             t["topic_id"] = str(idx)
-            t["category"] = t.get("category") or expected_categories[idx - 1]
+            t["category"] = expected_categories[idx - 1]
         else:
             t["topic_id"] = str(idx)
             t.setdefault("category", "Economic / Market / Regulatory Development")
@@ -281,8 +318,7 @@ def validate_topics(topics):
         t.setdefault("source_sentence", one_sentence(t.get("source_title", "")))
         valid.append(t)
 
-    if len(valid) >= 3:
-        # Enforce exact category labels and topic IDs in the final three options.
+    if len(valid) >= 6:
         for idx, rule in enumerate(CATEGORY_RULES):
             valid[idx]["topic_id"] = rule["topic_id"]
             valid[idx]["category"] = rule["category"]
@@ -296,19 +332,22 @@ def validate_topics(topics):
 
 
 def ai_select_topics(news_items, bank_name):
-    if len(news_items) < 3:
+    if len(news_items) < 6:
         print("WARNING: Not enough relevant news items. Using strategic fallback topics.")
         return fallback_topics(news_items)
 
     prompt = f"""
 You are DB Strategy AI Analyst.
 
-Select exactly 3 strong weekly strategy article topics for {bank_name}.
+Select exactly 6 strong weekly strategy article topics for {bank_name}.
 
 Mandatory topic variety:
 - Topic 1 must be category: Geopolitical / Regional Risk.
 - Topic 2 must be category: Banking / Financial Sector Development.
 - Topic 3 must be category: Economic / Market / Regulatory Development.
+- Topic 4 must be category: Qatar / GCC Business Opportunity.
+- Topic 5 must be category: Technology / Digital Banking / Fintech.
+- Topic 6 must be category: Corporate / Wholesale Banking Opportunity.
 
 Category definitions:
 {json.dumps(CATEGORY_RULES, ensure_ascii=False, indent=2)}
@@ -321,15 +360,15 @@ Strict rules:
 - Avoid repeating common weekly themes such as interest rates, LNG, oil prices or GCC banking liquidity unless there is a clearly new development.
 - Prefer Qatar and GCC topics first, especially topics linked to Qatar banking, liquidity, credit demand, government spending, infrastructure, real estate, LNG, energy, trade, regulation, or GCC corporate activity.
 - A global topic may be selected only if it has a materially stronger and clearly explainable impact on Doha Bank than available Qatar/GCC topics.
-- At least 2 of the 3 selected topics should be Qatar/GCC-focused when suitable Qatar/GCC news is available.
+- At least 3 of the 6 selected topics should be Qatar/GCC-focused when suitable Qatar/GCC news is available.
 - Do not select sports, entertainment, weather, lifestyle, podcasts, or generic human-interest stories.
-- Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, regulatory, geopolitical or trade-finance relevance.
+- Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, regulatory, geopolitical, technology or trade-finance relevance.
 - Each topic must explain a specific opportunity or risk for Doha Bank.
 - Preserve source_date from the selected news item exactly.
 - Preserve source_name and source_url from the selected news item.
 - source_sentence must be only one sentence and must be taken from or closely paraphrased from the selected article title or summary.
 - The source_sentence is only a teaser. Do not write a full source summary.
-- If available news is weak, still maintain the three mandatory categories and choose the strongest strategic interpretation.
+- If available news is weak, still maintain the six mandatory categories and choose the strongest strategic interpretation.
 
 Return only a valid JSON array. No markdown. No explanation.
 
@@ -370,6 +409,42 @@ Required structure:
     "source_sentence": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
+  }},
+  {{
+    "topic_id": "4",
+    "category": "Qatar / GCC Business Opportunity",
+    "title": "...",
+    "source_title": "...",
+    "source_name": "...",
+    "source_url": "...",
+    "source_date": "...",
+    "source_sentence": "...",
+    "why_it_matters": "...",
+    "potential_doha_bank_angle": "..."
+  }},
+  {{
+    "topic_id": "5",
+    "category": "Technology / Digital Banking / Fintech",
+    "title": "...",
+    "source_title": "...",
+    "source_name": "...",
+    "source_url": "...",
+    "source_date": "...",
+    "source_sentence": "...",
+    "why_it_matters": "...",
+    "potential_doha_bank_angle": "..."
+  }},
+  {{
+    "topic_id": "6",
+    "category": "Corporate / Wholesale Banking Opportunity",
+    "title": "...",
+    "source_title": "...",
+    "source_name": "...",
+    "source_url": "...",
+    "source_date": "...",
+    "source_sentence": "...",
+    "why_it_matters": "...",
+    "potential_doha_bank_angle": "..."
   }}
 ]
 
@@ -379,17 +454,16 @@ Relevant news only:
     try:
         text = ask_claude(prompt)
         topics = validate_topics(extract_json_array(text))
-        if len(topics) < 3:
+        if len(topics) < 6:
             print("WARNING: Claude returned weak or irrelevant topics. Using strategic fallback topics.")
             return fallback_topics(news_items)
-        return topics[:3]
+        return topics[:6]
     except Exception as e:
         print(f"WARNING: Claude topic generation failed. Using strategic fallback topics. Error: {e}")
         return fallback_topics(news_items)
 
 
 def strip_outer_html(full_html):
-    """Email-safe approximation for embedding full article previews in the approval email."""
     lower = full_html.lower()
     body_start = lower.find("<body")
     if body_start != -1:
@@ -407,6 +481,7 @@ def build_approval_email(drafts, approval_webhook_url):
         topic_id = str(t.get("topic_id", ""))
         category = str(t.get("category", ""))
         article_html = strip_outer_html(draft["html_file_content"])
+
         sections += f"""
 <tr>
 <td style="padding:24px 24px 10px 24px; border-top:2px solid #dbe5f0; background:#ffffff;">
@@ -510,5 +585,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
