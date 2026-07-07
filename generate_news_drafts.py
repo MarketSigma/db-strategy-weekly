@@ -205,15 +205,22 @@ def fetch_news(max_items=100):
 
     return items[:max_items]
 
-
-def one_sentence(value):
+def article_excerpt(value, max_chars=320):
     text = clean_text(value)
+
     if not text:
         return ""
-    for sep in [". ", "! ", "? "]:
-        if sep in text:
-            return text.split(sep)[0].strip() + sep.strip()
-    return text[:220].strip()
+
+    if len(text) <= max_chars:
+        return text
+
+    excerpt = text[:max_chars]
+
+    last_period = excerpt.rfind(".")
+    if last_period > 150:
+        return excerpt[:last_period + 1]
+
+    return excerpt + "..."
 
 
 def fallback_topics(news_items):
@@ -226,7 +233,7 @@ def fallback_topics(news_items):
             "source_name": "Fallback Strategy Topic",
             "source_url": "https://www.aljazeera.com/economy/",
             "source_date": TODAY,
-            "source_sentence": "Regional geopolitical developments can affect trade flows, client activity and risk sentiment across Gulf markets.",
+            "source_excerpt": "Regional geopolitical developments can affect trade flows, client activity and risk sentiment across Gulf markets.",
             "why_it_matters": "Regional risk can affect corporate confidence, trade finance flows, treasury positioning and risk appetite across Qatar and the wider GCC.",
             "potential_doha_bank_angle": "Assess exposed corporate sectors, trade finance demand, cash management needs, liquidity buffers and client advisory opportunities."
         },
@@ -238,7 +245,7 @@ def fallback_topics(news_items):
             "source_name": "Fallback Strategy Topic",
             "source_url": "https://www.cnbc.com/finance/",
             "source_date": TODAY,
-            "source_sentence": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
+            "source_excerpt": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
             "why_it_matters": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
             "potential_doha_bank_angle": "Assess corporate lending opportunities, deposit mobilisation, sector exposure and relationship banking priorities."
         },
@@ -250,7 +257,7 @@ def fallback_topics(news_items):
             "source_name": "Fallback Strategy Topic",
             "source_url": "https://www.cnbc.com/markets/",
             "source_date": TODAY,
-            "source_sentence": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
+            "source_excerpt": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
             "why_it_matters": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
             "potential_doha_bank_angle": "Assess deposit repricing, loan yield sensitivity, liquidity positioning and opportunities to protect margin."
         },
@@ -262,7 +269,7 @@ def fallback_topics(news_items):
             "source_name": "Fallback Strategy Topic",
             "source_url": "https://thepeninsulaqatar.com/",
             "source_date": TODAY,
-            "source_sentence": "Qatar and GCC investment activity can create new lending, advisory and transaction banking opportunities.",
+            "source_excerpt": "Qatar and GCC investment activity can create new lending, advisory and transaction banking opportunities.",
             "why_it_matters": "Investment activity supports corporate expansion, project finance, cash management and deposit opportunities.",
             "potential_doha_bank_angle": "Identify sectors with rising funding needs and strengthen targeted corporate coverage."
         },
@@ -274,7 +281,7 @@ def fallback_topics(news_items):
             "source_name": "Fallback Strategy Topic",
             "source_url": "https://www.bis.org/",
             "source_date": TODAY,
-            "source_sentence": "Digital banking and fintech developments are reshaping customer expectations and competitive positioning.",
+            "source_excerpt": "Digital banking and fintech developments are reshaping customer expectations and competitive positioning.",
             "why_it_matters": "Digital capability affects customer retention, fee income, cost efficiency and competitive differentiation.",
             "potential_doha_bank_angle": "Assess digital product gaps, payment opportunities, customer migration and efficiency initiatives."
         },
@@ -286,7 +293,7 @@ def fallback_topics(news_items):
             "source_name": "Fallback Strategy Topic",
             "source_url": "https://www.cnbc.com/finance/",
             "source_date": TODAY,
-            "source_sentence": "Corporate banking demand can create opportunities in trade finance, treasury and cash management services.",
+            "source_excerpt": "Corporate banking demand can create opportunities in trade finance, treasury and cash management services.",
             "why_it_matters": "Wholesale banking opportunities support fee income, deposit mobilisation and relationship-led growth.",
             "potential_doha_bank_angle": "Prioritise corporate clients with rising trade, liquidity and treasury management needs."
         }
@@ -315,15 +322,15 @@ def validate_topics(topics):
             t.setdefault("category", "Economic / Market / Regulatory Development")
 
         t.setdefault("source_date", TODAY)
-        t.setdefault("source_sentence", one_sentence(t.get("source_title", "")))
+        t.setdefault("source_excerpt", one_sentence(t.get("source_title", "")))
         valid.append(t)
 
     if len(valid) >= 6:
         for idx, rule in enumerate(CATEGORY_RULES):
             valid[idx]["topic_id"] = rule["topic_id"]
             valid[idx]["category"] = rule["category"]
-            valid[idx]["source_sentence"] = one_sentence(
-                valid[idx].get("source_sentence")
+            valid[idx]["source_excerpt"] = one_sentence(
+                valid[idx].get("source_excerpt")
                 or valid[idx].get("source_title")
                 or valid[idx].get("title")
             )
@@ -366,8 +373,8 @@ Strict rules:
 - Each topic must explain a specific opportunity or risk for Doha Bank.
 - Preserve source_date from the selected news item exactly.
 - Preserve source_name and source_url from the selected news item.
-- source_sentence must be only one sentence and must be taken from or closely paraphrased from the selected article title or summary.
-- The source_sentence is only a teaser. Do not write a full source summary.
+- source_excerpt must be only one sentence and must be taken from or closely paraphrased from the selected article title or summary.
+- The source_excerpt is only a teaser. Do not write a full source summary.
 - If available news is weak, still maintain the six mandatory categories and choose the strongest strategic interpretation.
 
 Return only a valid JSON array. No markdown. No explanation.
@@ -382,7 +389,7 @@ Required structure:
     "source_name": "...",
     "source_url": "...",
     "source_date": "...",
-    "source_sentence": "...",
+    "source_excerpt": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
   }},
@@ -394,7 +401,7 @@ Required structure:
     "source_name": "...",
     "source_url": "...",
     "source_date": "...",
-    "source_sentence": "...",
+    "source_excerpt": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
   }},
@@ -406,7 +413,7 @@ Required structure:
     "source_name": "...",
     "source_url": "...",
     "source_date": "...",
-    "source_sentence": "...",
+    "source_excerpt": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
   }},
@@ -418,7 +425,7 @@ Required structure:
     "source_name": "...",
     "source_url": "...",
     "source_date": "...",
-    "source_sentence": "...",
+    "source_excerpt": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
   }},
@@ -430,7 +437,7 @@ Required structure:
     "source_name": "...",
     "source_url": "...",
     "source_date": "...",
-    "source_sentence": "...",
+    "source_excerpt": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
   }},
@@ -442,7 +449,7 @@ Required structure:
     "source_name": "...",
     "source_url": "...",
     "source_date": "...",
-    "source_sentence": "...",
+    "source_excerpt": "...",
     "why_it_matters": "...",
     "potential_doha_bank_angle": "..."
   }}
