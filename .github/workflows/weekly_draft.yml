@@ -2,7 +2,7 @@ name: DB Strategy Weekly - Draft Only
 
 on:
   schedule:
-    - cron: "55 6 * * 3" # Wednesday 09:55 Qatar
+    - cron: "30 4 * * 3" # Wednesday 09:55 Qatar
   workflow_dispatch:
 
 jobs:
