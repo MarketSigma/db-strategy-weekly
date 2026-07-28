@@ -9,7 +9,7 @@ import resend
 def build_subject():
     base_subject = os.environ.get(
         "DB_STRATEGY_WEEKLY_EMAIL_SUBJECT",
-        "DB Strategy Weekly"
+        "DB Strategy Weekly Opportunities & Risks"
     ).strip()
 
     today = f"{date.today():%d %B %Y}"
