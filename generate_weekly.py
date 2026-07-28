@@ -18,11 +18,25 @@ supabase = create_client(
 
 TODAY = datetime.date.today().strftime("%d %B %Y")
 
-NAVY = "#002b5c"
-BLUE = "#0072ce"
-SLATE = "#2c3e54"
-MUTED = "#8a99ad"
-GREY = "#7a8aa0"
+# Brand palette sampled directly from the approved Doha Bank logo.
+NAVY = "#002454"        # exact brand navy
+BLUE = "#274063"        # soft navy for secondary accents / links (name kept for compatibility)
+GOLD = "#c0a884"        # exact brand camel — decorative rules
+CAMEL_TEXT = "#9a7c4f"  # deeper camel that stays legible as small text
+PALE_GOLD = "#f9f6f0"   # warm paper tint for cards
+SLATE = "#36434f"       # body ink
+MUTED = "#948d7e"       # warm muted grey
+GREY = "#6f6a5e"        # warm grey for labels
+LINE = "#e8e3d9"        # warm hairline rule
+PAGE_BG = "#ece9e2"     # warm page background
+
+# Host the approved Doha Bank logo on a public HTTPS URL (for example,
+# a raw GitHub asset URL) and store it in GitHub Actions as DB_LOGO_URL.
+# Email clients cannot load a logo directly from the repository filesystem.
+LOGO_URL = os.getenv(
+    "DB_LOGO_URL",
+    "https://raw.githubusercontent.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPO/main/assets/doha-bank-logo.png"
+)
 
 METRIC_LABELS = {
     "customer_deposits": "Customer Deposits",
@@ -424,14 +438,14 @@ def build_final_email(topic, article):
         proj = html.escape(remove_raw_metric_codes_from_text(safe_get(r, "projected_value", "projected", default="—") or "—"))
         change = remove_raw_metric_codes_from_text(safe_get(r, "change", default=""))
         change_cell = html.escape(change) if change else "—"
-        row_bg = "#ffffff" if idx % 2 == 0 else "#f7fafd"
+        row_bg = "#ffffff" if idx % 2 == 0 else "#f9f6f0"
 
         rows += f"""
 <tr style="background-color:{row_bg};">
-<td class="cell" style="padding:11px 14px; font-family:Arial,sans-serif; font-size:15px; color:{SLATE}; border-bottom:1px solid #eef2f6;">{metric}</td>
-<td class="cell" style="padding:11px 14px; text-align:right; font-family:Georgia,serif; font-size:15px; color:{MUTED}; border-bottom:1px solid #eef2f6;">{curr}</td>
-<td class="cell" style="padding:11px 14px; text-align:right; font-family:Georgia,serif; font-size:15px; font-weight:bold; color:{NAVY}; border-bottom:1px solid #eef2f6;">{proj}</td>
-<td class="cell" style="padding:11px 14px; text-align:right; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:{BLUE}; border-bottom:1px solid #eef2f6;">{change_cell}</td>
+<td class="cell" style="padding:11px 14px; font-family:Arial,sans-serif; font-size:15px; color:{SLATE}; border-bottom:1px solid #ece7dd;">{metric}</td>
+<td class="cell" style="padding:11px 14px; text-align:right; font-family:Georgia,serif; font-size:15px; color:{MUTED}; border-bottom:1px solid #ece7dd;">{curr}</td>
+<td class="cell" style="padding:11px 14px; text-align:right; font-family:Georgia,serif; font-size:15px; font-weight:bold; color:{NAVY}; border-bottom:1px solid #ece7dd;">{proj}</td>
+<td class="cell" style="padding:11px 14px; text-align:right; font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:{CAMEL_TEXT}; border-bottom:1px solid #ece7dd;">{change_cell}</td>
 </tr>"""
 
     def points_html(items):
@@ -476,7 +490,7 @@ def build_final_email(topic, article):
 
         options += f"""
 <tr>
-<td width="34" valign="top" style="{badge_pad} padding-top:1px;"><div style="width:23px; height:23px; background-color:{BLUE}; border-radius:12px; color:#ffffff; font-family:Arial,sans-serif; font-size:12px; font-weight:bold; text-align:center; line-height:23px;">{i}</div></td>
+<td width="34" valign="top" style="{badge_pad} padding-top:1px;"><div style="width:23px; height:23px; background-color:{NAVY}; border-radius:12px; color:#ffffff; font-family:Arial,sans-serif; font-size:12px; font-weight:bold; text-align:center; line-height:23px;">{i}</div></td>
 <td valign="top" style="font-family:Arial,sans-serif; font-size:15px; line-height:1.5; color:{SLATE}; padding:0 0 16px 6px;">
   <div>{recommendation}</div>
   {owner_html}
@@ -504,99 +518,121 @@ def build_final_email(topic, article):
 
     source_summary = html.escape(source_summary_raw)
 
+    def section_label(text):
+        return (
+            f'<p style="margin:0 0 9px 0; font-family:Georgia,\'Times New Roman\',serif; '
+            f'font-size:13px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; '
+            f'color:{NAVY};">{text}</p>'
+            f'<div style="width:34px; height:2px; background-color:{GOLD}; margin:0 0 16px 0; '
+            f'font-size:0; line-height:0;">&nbsp;</div>'
+        )
+
     return f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DB Strategy Weekly</title>
+<title>Doha Bank &middot; Weekly Strategy Briefing &mdash; {TODAY}</title>
 <style>
   @media only screen and (max-width:620px) {{
-    .container {{ width:100% !important; border-radius:0 !important; }}
-    .pad {{ padding-left:24px !important; padding-right:24px !important; }}
-    .h1 {{ font-size:26px !important; line-height:1.2 !important; }}
-    .body-text {{ font-size:17px !important; line-height:1.75 !important; }}
-    .source-title {{ font-size:19px !important; }}
-    .source-summary {{ font-size:16px !important; }}
-    .cell {{ font-size:15px !important; padding:13px 14px !important; }}
-    .stack {{ display:block !important; width:100% !important; max-width:100% !important; box-sizing:border-box !important; margin:0 0 14px 0 !important; }}
+    .container {{ width:100% !important; }}
+    .pad {{ padding-left:26px !important; padding-right:26px !important; }}
+    .h1 {{ font-size:28px !important; line-height:1.18 !important; }}
+    .body-text {{ font-size:16px !important; line-height:1.75 !important; }}
+    .source-title {{ font-size:18px !important; }}
+    .source-summary {{ font-size:15px !important; }}
+    .cell {{ font-size:14px !important; padding:12px 12px !important; }}
+    .stack {{ display:block !important; width:100% !important; max-width:100% !important; box-sizing:border-box !important; margin:0 0 12px 0 !important; }}
     .stack-last {{ margin:0 !important; }}
     .spacer {{ display:none !important; }}
+    .masthead-date {{ font-size:10px !important; }}
   }}
 </style>
 </head>
-<body style="margin:0; padding:0; background-color:#e7ecf3; font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#e7ecf3; padding:32px 24px;"><tr><td align="center">
-<table role="presentation" width="760" cellpadding="0" cellspacing="0" class="container" style="width:760px; max-width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 6px 26px rgba(0,25,70,0.12);">
+<body style="margin:0; padding:0; background-color:{PAGE_BG}; font-family:Arial,Helvetica,sans-serif;">
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; opacity:0; color:{PAGE_BG};">Weekly strategic opportunities, risks and recommended management actions for Doha Bank.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{PAGE_BG}; padding:40px 20px;"><tr><td align="center">
+<table role="presentation" width="720" cellpadding="0" cellspacing="0" class="container" style="width:720px; max-width:100%; background-color:#ffffff; border:1px solid {LINE};">
 
-  <tr><td style="height:3px; background-color:{BLUE}; font-size:0; line-height:0;">&nbsp;</td></tr>
+  <tr><td style="height:3px; background-color:{NAVY}; font-size:0; line-height:0;">&nbsp;</td></tr>
 
-  <tr><td class="pad" style="padding:26px 40px 24px 40px; border-bottom:1px solid #eaeef4;">
+  <tr><td class="pad" style="padding:26px 44px 18px 44px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:{BLUE};">DB Weekly &nbsp;&middot;&nbsp; Opportunities &amp; Risks</td>
-      <td align="right" style="font-family:Arial,sans-serif; font-size:12px; letter-spacing:1px; color:{MUTED};">{TODAY}</td>
+      <td valign="middle">
+        <img src="{LOGO_URL}" width="200" alt="Doha Bank" style="display:block; width:200px; max-width:72%; height:auto; border:0; outline:none; text-decoration:none;">
+      </td>
+      <td class="masthead-date" align="right" valign="middle" style="font-family:Arial,sans-serif; font-size:11px; letter-spacing:1.6px; text-transform:uppercase; color:{MUTED}; white-space:nowrap;">{TODAY}</td>
     </tr></table>
-    <h1 class="h1" style="margin:20px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:30px; line-height:1.12; font-weight:bold; color:{NAVY};">Weekly Strategic Outlook</h1>
-    <p style="margin:10px 0 0 0; font-family:Arial,sans-serif; font-size:15px; line-height:1.5; color:{GREY};">Key opportunities, risks and strategic implications for Doha Bank</p>
   </td></tr>
 
-  <tr><td class="pad" style="padding:28px 40px 0 40px;">
-    <p style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">This week&rsquo;s source</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f6f9fc; border:1px solid #e8eef5; border-radius:8px;"><tr>
-      <td style="padding:22px 24px;">
-        <p class="source-title" style="margin:0 0 9px 0; font-family:Georgia,serif; font-size:18px; font-weight:bold; line-height:1.35; color:{NAVY};">{source_title}</p>
-        <p style="margin:0 0 13px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.3px; color:{MUTED};">{source_meta}</p>
-        <p class="source-summary" style="margin:0 0 16px 0; font-family:Arial,sans-serif; font-size:15px; line-height:1.65; color:#5a6b7d;">{source_summary}</p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e8eef5;"><tr>
-          <td align="right" style="padding-top:12px;"><a href="{source_url}" style="font-family:Arial,sans-serif; font-size:13px; font-weight:bold; letter-spacing:0.3px; color:{BLUE}; text-decoration:none;">Read more &rarr;</a></td>
-        </tr></table>
+  <tr><td class="pad" style="padding:0 44px;"><div style="height:1px; background-color:{GOLD}; font-size:0; line-height:0;">&nbsp;</div></td></tr>
+
+  <tr><td class="pad" style="padding:32px 44px 4px 44px;">
+    <p style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:11px; font-weight:bold; letter-spacing:3px; text-transform:uppercase; color:{CAMEL_TEXT};">Weekly Strategy Briefing</p>
+    <h1 class="h1" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:35px; line-height:1.12; font-weight:normal; color:{NAVY};">Opportunities &amp; Risks</h1>
+    <p style="margin:14px 0 0 0; font-family:Arial,sans-serif; font-size:14px; line-height:1.55; color:{GREY};">Strategic implications, financial impact and recommended management actions for Doha Bank.</p>
+  </td></tr>
+
+  <tr><td class="pad" style="padding:30px 44px 0 44px;">
+    {section_label("This week&rsquo;s source")}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{PALE_GOLD}; border:1px solid {LINE}; border-collapse:separate;"><tr>
+      <td width="3" style="background-color:{GOLD}; font-size:0; line-height:0;">&nbsp;</td>
+      <td style="padding:20px 24px;">
+        <p class="source-title" style="margin:0 0 8px 0; font-family:Georgia,serif; font-size:18px; font-weight:bold; line-height:1.35; color:{NAVY};">{source_title}</p>
+        <p style="margin:0 0 12px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.3px; color:{MUTED};">{source_meta}</p>
+        <p class="source-summary" style="margin:0 0 16px 0; font-family:Arial,sans-serif; font-size:15px; line-height:1.65; color:{SLATE};">{source_summary}</p>
+        <div style="border-top:1px solid {LINE}; padding-top:12px; text-align:right;">
+          <a href="{source_url}" style="font-family:Arial,sans-serif; font-size:11px; font-weight:bold; letter-spacing:1.4px; text-transform:uppercase; color:{NAVY}; text-decoration:none;">Read the source &rarr;</a>
+        </div>
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td class="pad" style="padding:24px 40px 0 40px;">
-    <p style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">What it means for Doha Bank</p>
+  <tr><td class="pad" style="padding:32px 44px 0 44px;">
+    {section_label("What it means for Doha Bank")}
     {impact_paras}
   </td></tr>
 
-  <tr><td class="pad" style="padding:24px 40px 0 40px;">
-    <p style="margin:0 0 14px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Projected impact on key metrics</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6ebf2; border-radius:8px; border-collapse:separate; overflow:hidden;">
-      <tr style="background-color:#ffffff;">
-        <td style="padding:13px 18px; font-family:Arial,sans-serif; font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {BLUE};">Metric</td>
-        <td style="padding:13px 18px; text-align:right; font-family:Arial,sans-serif; font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {BLUE};">Current</td>
-        <td style="padding:13px 18px; text-align:right; font-family:Arial,sans-serif; font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {BLUE};">Projected</td>
-        <td style="padding:13px 18px; text-align:right; font-family:Arial,sans-serif; font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {BLUE};">Change</td>
+  <tr><td class="pad" style="padding:30px 44px 0 44px;">
+    {section_label("Projected impact on key metrics")}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {LINE}; border-collapse:collapse;">
+      <tr>
+        <td style="padding:12px 16px; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Metric</td>
+        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Current</td>
+        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Projected</td>
+        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Change</td>
       </tr>
       {rows}
     </table>
-    <p style="margin:10px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Doha Bank figures are based on reported results. Projected figures represent model-based estimates intended to illustrate potential impacts.</p>
+    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Doha Bank figures are based on reported results. Projected figures are model-based estimates intended to illustrate potential impact.</p>
   </td></tr>
 
-  <tr><td class="pad" style="padding:24px 40px 0 40px;">
+  <tr><td class="pad" style="padding:32px 44px 0 44px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="49%" valign="top" class="stack" style="background-color:#f2f7fd; border-radius:8px; border-top:3px solid {BLUE}; padding:14px 16px; box-sizing:border-box;">
-        <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Opportunity</p>
+      <td width="49%" valign="top" class="stack" style="background-color:#ffffff; border:1px solid {LINE}; border-top:2px solid {GOLD}; padding:16px 18px; box-sizing:border-box;">
+        <p style="margin:0 0 11px 0; font-family:Arial,sans-serif; font-size:11px; letter-spacing:1.8px; text-transform:uppercase; font-weight:bold; color:{CAMEL_TEXT};">Opportunity</p>
         {opp_html}
       </td>
       <td width="2%" class="spacer" style="font-size:0; line-height:0;">&nbsp;</td>
-      <td width="49%" valign="top" class="stack stack-last" style="background-color:#f4f6f9; border-radius:8px; border-top:3px solid {NAVY}; padding:14px 16px; box-sizing:border-box;">
-        <p style="margin:0 0 10px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; font-weight:bold; color:{NAVY};">Risk</p>
+      <td width="49%" valign="top" class="stack stack-last" style="background-color:#ffffff; border:1px solid {LINE}; border-top:2px solid {NAVY}; padding:16px 18px; box-sizing:border-box;">
+        <p style="margin:0 0 11px 0; font-family:Arial,sans-serif; font-size:11px; letter-spacing:1.8px; text-transform:uppercase; font-weight:bold; color:{NAVY};">Risk</p>
         {risk_html}
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td class="pad" style="padding:24px 40px 0 40px;">
-    <p style="margin:0 0 16px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold; color:{BLUE};">Strategic recommendations</p>
+  <tr><td class="pad" style="padding:32px 44px 4px 44px;">
+    {section_label("Strategic recommendations")}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{options}</table>
   </td></tr>
 
-  <tr><td class="pad" style="padding:30px 40px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e4e9f0;"><tr>
-      <td style="padding-top:16px; font-family:Arial,sans-serif; font-size:11px; color:{MUTED}; line-height:1.5;">The analysis expressed is that of the DB Strategy AI Analyst.</td>
-      <td align="right" style="padding-top:16px; font-family:Arial,sans-serif; font-size:11px; color:#a7b2c2;">&copy; 2026 Doha Bank</td>
+  <tr><td class="pad" style="padding:26px 44px 30px 44px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid {LINE};"><tr>
+      <td style="padding-top:16px; font-family:Arial,sans-serif; font-size:11px; color:{MUTED}; line-height:1.6;">
+        The analysis expressed is that of the DB Strategy AI Analyst.<br>
+        <strong style="color:{NAVY}; letter-spacing:0.4px;">Powered by Strategy &amp; Transformation</strong>
+      </td>
     </tr></table>
   </td></tr>
 
@@ -631,5 +667,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
