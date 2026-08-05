@@ -118,14 +118,15 @@ def ask_claude(prompt, max_tokens=5000):
     strict_prompt = prompt + """
 
 IMPORTANT OUTPUT RULES:
-Return ONLY valid JSON.
-Do not include markdown.
-Do not include ```json fences.
-Do not include explanation before or after the JSON.
+Return EXACTLY ONE valid JSON object.
+Do not restart, apologise, explain mistakes, or output multiple JSON attempts.
+Do not include markdown or ```json fences.
+Do not include any text before or after the JSON.
 The response must start with { and end with }.
 Use double quotes for all JSON keys and string values.
 Escape all internal quotes inside strings.
 Do not use trailing commas.
+If you detect a mistake, correct it internally and output only the final JSON object.
 """
 
     response = client.messages.create(
@@ -142,37 +143,48 @@ Do not use trailing commas.
 
 
 def extract_json_object(text):
+    """
+    Extract the last complete JSON object returned by Claude.
+
+    Handles markdown fences, commentary around JSON, illegal control
+    characters, and multiple JSON attempts in a single response.
+    """
+    if not text or not text.strip():
+        raise ValueError("Claude returned an empty response.")
+
     cleaned = text.strip()
+    cleaned = re.sub(r"```(?:json|JSON)?", "", cleaned)
+    cleaned = cleaned.replace("```", "").strip()
 
-    if cleaned.startswith("```"):
-        cleaned = (
-            cleaned.replace("```json", "", 1)
-            .replace("```JSON", "", 1)
-            .replace("```", "")
-            .strip()
-        )
+    # Remove illegal raw control characters that can break JSON strings.
+    cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", cleaned)
 
-    start = cleaned.find("{")
-    end = cleaned.rfind("}")
+    decoder = json.JSONDecoder()
+    objects = []
+    index = 0
 
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError(f"Claude did not return a JSON object: {text[:500]}")
-
-    json_text = cleaned[start:end + 1]
-
-    try:
-        return json.loads(json_text)
-    except json.JSONDecodeError:
-        # Remove illegal raw control characters that sometimes appear inside AI JSON strings.
-        json_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", json_text)
+    while index < len(cleaned):
+        if cleaned[index] != "{":
+            index += 1
+            continue
 
         try:
-            return json.loads(json_text)
-        except json.JSONDecodeError as e:
-            print("Failed to parse Claude JSON.")
-            print("Claude output preview:")
-            print(json_text[:2000])
-            raise e
+            obj, consumed = decoder.raw_decode(cleaned[index:])
+            if isinstance(obj, dict):
+                objects.append(obj)
+            index += max(consumed, 1)
+        except json.JSONDecodeError:
+            index += 1
+
+    if objects:
+        # Claude may correct itself by producing a second object.
+        # The last valid object is normally the final intended response.
+        return objects[-1]
+
+    print("Failed to parse Claude JSON.")
+    print("Claude output preview:")
+    print(cleaned[:4000])
+    raise ValueError("No valid JSON object found in Claude response.")
 
 
 def get_selected_topic(json_file, topic_id):
@@ -667,6 +679,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
 
