@@ -361,6 +361,14 @@ Use this EXACT JSON structure:
   ]
 }}
 
+Geographic priority:
+- This briefing is for Doha Bank in Qatar.
+- Anchor the analysis in Qatar first and the GCC second.
+- For Qatar/GCC topics, explicitly connect the development to Qatar banking conditions, corporate activity, liquidity, credit demand, trade, investment, government spending, energy/LNG, real estate, infrastructure, regulation, or client activity where relevant.
+- For a global topic, explain the direct transmission channel into Qatar or the GCC before discussing Doha Bank.
+- Avoid generic US/Europe/global commentary unless it materially changes the implications for Doha Bank.
+- Recommendations should be practical for Doha Bank's Qatar/GCC operating context.
+
 Global rules:
 - Do NOT invent financial numbers.
 - Only use Doha Bank figures present in the Supabase data below.
@@ -572,7 +580,13 @@ def build_final_email(topic, article):
   <tr><td class="pad" style="padding:26px 44px 18px 44px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td valign="middle">
-        <img src="{LOGO_URL}" width="200" alt="Doha Bank" style="display:block; width:200px; max-width:72%; height:auto; border:0; outline:none; text-decoration:none;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td>
+              <img src="{LOGO_URL}" width="180" alt="Doha Bank" style="display:block; border:0; outline:none; text-decoration:none; width:180px; height:auto;">
+            </td>
+          </tr>
+        </table>
       </td>
       <td class="masthead-date" align="right" valign="middle" style="font-family:Arial,sans-serif; font-size:11px; letter-spacing:1.6px; text-transform:uppercase; color:{MUTED}; white-space:nowrap;">{TODAY}</td>
     </tr></table>
@@ -679,6 +693,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
 
