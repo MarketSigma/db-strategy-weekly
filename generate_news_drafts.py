@@ -5,6 +5,7 @@ import argparse
 import datetime
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse, urljoin
+import urllib.parse
 from urllib.request import Request, urlopen
 from html.parser import HTMLParser
 import feedparser
@@ -157,6 +158,135 @@ COMPETITOR_NEWSROOMS = [
         "priority": 240,
     },
 ]
+
+
+COMPETITOR_SEARCHES = [
+    {
+        "bank": "Dukhan Bank",
+        "query": '"Dukhan Bank" (payments OR blockchain OR Kinexys OR "open banking" OR fintech OR partnership OR launch OR treasury OR "cash management" OR "transaction banking" OR financing OR sukuk OR wealth)',
+        "priority": 260,
+    },
+    {
+        "bank": "QNB",
+        "query": '"QNB" Qatar (payments OR fintech OR partnership OR launch OR treasury OR "cash management" OR "transaction banking" OR financing OR sukuk OR wealth OR AI)',
+        "priority": 245,
+    },
+    {
+        "bank": "Qatar Islamic Bank",
+        "query": '"Qatar Islamic Bank" OR QIB Qatar (payments OR fintech OR partnership OR launch OR treasury OR "cash management" OR financing OR wealth OR AI)',
+        "priority": 245,
+    },
+    {
+        "bank": "Commercial Bank Qatar",
+        "query": '"Commercial Bank" Qatar (payments OR fintech OR partnership OR launch OR treasury OR "cash management" OR financing OR wealth OR AI)',
+        "priority": 245,
+    },
+    {
+        "bank": "Masraf Al Rayan",
+        "query": '"Masraf Al Rayan" (payments OR fintech OR partnership OR launch OR treasury OR financing OR wealth OR digital)',
+        "priority": 240,
+    },
+    {
+        "bank": "QIIB",
+        "query": '"QIIB" Qatar OR "Qatar International Islamic Bank" (payments OR fintech OR partnership OR launch OR treasury OR financing OR wealth OR digital)',
+        "priority": 240,
+    },
+    {
+        "bank": "Ahlibank Qatar",
+        "query": '"Ahlibank Qatar" (payments OR fintech OR partnership OR launch OR treasury OR financing OR wealth OR digital)',
+        "priority": 235,
+    },
+]
+
+
+def google_news_rss_url(query, days=14):
+    q = f"{query} when:{days}d"
+    return (
+        "https://news.google.com/rss/search?q="
+        + urllib.parse.quote(q)
+        + "&hl=en&gl=QA&ceid=QA:en"
+    )
+
+
+def fetch_competitor_search_news(max_per_bank=15):
+    """
+    Search-index fallback using Google News RSS.
+
+    This catches official/press coverage even when a bank's newsroom listing page
+    is rendered with JavaScript and cannot be discovered by the lightweight HTML parser.
+    """
+    items = []
+    seen = set()
+
+    for cfg in COMPETITOR_SEARCHES:
+        bank = cfg["bank"]
+        url = google_news_rss_url(cfg["query"], days=14)
+        base_priority = int(cfg["priority"])
+
+        try:
+            feed = feedparser.parse(url)
+
+            for entry in feed.entries[:max_per_bank]:
+                title = clean_text(entry.get("title", ""))
+                summary = clean_text(entry.get("summary", ""))
+                link = clean_text(entry.get("link", ""))
+
+                if not title or not link:
+                    continue
+
+                key = dedupe_key(link, title)
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                combined = f"{title} {summary}".lower()
+
+                # Ensure the result is really about the named competitor.
+                bank_tokens = [
+                    bank.lower(),
+                    bank.lower().replace(" qatar", ""),
+                ]
+                if bank == "Qatar Islamic Bank":
+                    bank_tokens += ["qib"]
+                elif bank == "Commercial Bank Qatar":
+                    bank_tokens += ["commercial bank"]
+                elif bank == "QIIB":
+                    bank_tokens += ["qatar international islamic bank"]
+
+                if not any(token and token in combined for token in bank_tokens):
+                    continue
+
+                strategic_score = competitor_relevance_score(title, summary)
+
+                # Keep only meaningful commercial/competitive moves.
+                if strategic_score < 18:
+                    continue
+
+                source_name = "Google News"
+                source_obj = entry.get("source")
+                if isinstance(source_obj, dict):
+                    source_name = clean_text(source_obj.get("title", "")) or source_name
+
+                published_raw = entry.get("published", "") or entry.get("updated", "")
+
+                items.append({
+                    "title": title,
+                    "summary": summary[:1200],
+                    "link": link,
+                    "source": source_name,
+                    "source_date": format_source_date(published_raw),
+                    "geography": "Qatar",
+                    "competitor_bank": bank,
+                    "source_type": "competitor_search_result",
+                    "_priority_score": base_priority + strategic_score,
+                })
+
+        except Exception as e:
+            print(f"WARNING: Competitor search failed for {bank}. Error: {e}")
+
+    items.sort(key=lambda x: x.get("_priority_score", 0), reverse=True)
+    return items
+
 
 COMPETITOR_STRATEGIC_TERMS = [
     "kinexys", "blockchain", "deposit account", "open banking", "fintech",
@@ -524,12 +654,29 @@ def fetch_news(max_items=140, sources_path="news_sources.json"):
     print(f"Direct competitor monitor found {len(competitor_items)} announcement candidates.")
     for ci in competitor_items[:10]:
         print(
-            "COMPETITOR CANDIDATE | "
+            "DIRECT COMPETITOR | "
             f"score={commercial_signal_score(ci)} | "
             f"{ci.get('competitor_bank', '')} | {ci.get('title', '')}"
         )
 
     for item in competitor_items:
+        key = dedupe_key(item.get("link"), item.get("title"))
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(item)
+
+    # Search-index fallback for JS-rendered bank newsrooms.
+    competitor_search_items = fetch_competitor_search_news()
+    print(f"Competitor search fallback found {len(competitor_search_items)} candidates.")
+    for ci in competitor_search_items[:15]:
+        print(
+            "SEARCH COMPETITOR | "
+            f"score={commercial_signal_score(ci)} | "
+            f"{ci.get('competitor_bank', '')} | {ci.get('title', '')}"
+        )
+
+    for item in competitor_search_items:
         key = dedupe_key(item.get("link"), item.get("title"))
         if key in seen:
             continue
@@ -596,7 +743,8 @@ def fetch_news(max_items=140, sources_path="news_sources.json"):
         item.pop("_priority_score", None)
 
     competitor_count = sum(
-        1 for x in trimmed if x.get("source_type") == "official_competitor_announcement"
+        1 for x in trimmed
+        if x.get("source_type") in ("official_competitor_announcement", "competitor_search_result")
     )
     qatar_count = sum(1 for x in trimmed if x.get("geography") == "Qatar")
     gcc_count = sum(1 for x in trimmed if x.get("geography") == "GCC")
@@ -683,6 +831,8 @@ def commercial_signal_score(item):
 
     if item.get("source_type") == "official_competitor_announcement":
         score += 45
+    elif item.get("source_type") == "competitor_search_result":
+        score += 28
 
     if item.get("geography") == "Qatar":
         score += 35
@@ -704,11 +854,19 @@ def best_competitor_move(news_items):
     candidates = []
 
     for item in news_items:
-        if item.get("source_type") != "official_competitor_announcement":
+        if item.get("source_type") not in (
+            "official_competitor_announcement",
+            "competitor_search_result",
+        ):
             continue
 
         score = commercial_signal_score(item)
-        if score >= 80:
+
+        # Search-index results need a slightly lower threshold because they may
+        # only carry a headline + short snippet, but must still be high signal.
+        threshold = 80 if item.get("source_type") == "official_competitor_announcement" else 60
+
+        if score >= threshold:
             candidates.append((score, item))
 
     if not candidates:
