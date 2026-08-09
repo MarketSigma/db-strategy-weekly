@@ -390,48 +390,51 @@ BLOCKED_TERMS = [
 ]
 
 REQUIRED_TERMS = [
-    "bank", "banks", "banking", "rate", "rates", "fed", "central bank",
-    "inflation", "economy", "economic", "finance", "financial",
-    "market", "markets", "credit", "liquidity", "investment",
-    "trade", "oil", "gas", "lng", "energy", "qatar", "gcc", "gulf",
-    "saudi", "uae", "kuwait", "bahrain", "oman", "geopolitical",
-    "sovereign", "infrastructure", "regulation", "regulatory", "debt",
-    "bond", "bonds", "loan", "loans", "growth", "risk", "risks",
-    "sanctions", "shipping", "red sea", "supply chain", "real estate",
-    "project finance", "treasury", "digital banking", "fintech",
-    "corporate banking", "wholesale banking", "payments", "cash management"
+    "bank", "banks", "banking", "fintech", "payments", "payment",
+    "transaction banking", "cash management", "treasury", "trade finance",
+    "project finance", "corporate banking", "wholesale banking",
+    "digital banking", "open banking", "blockchain", "kinexys",
+    "artificial intelligence", " ai ", "api", "wallet", "remittance",
+    "merchant", "acquiring", "wealth", "asset management", "sukuk", "bond",
+    "partnership", "agreement", "launch", "launches", "expansion",
+    "investment", "acquisition", "funding", "financing", "credit",
+    "deposit", "liquidity", "infrastructure", "project", "real estate",
+    "lng", "energy", "qatar", "doha", "gcc", "gulf", "saudi", "uae",
+    "kuwait", "bahrain", "oman", "qcb", "qatarenergy", "qia",
+    "qatar stock exchange", "free zone", "qfc", "logistics", "data center",
+    "data centre", "healthcare", "tourism", "manufacturing", "sme"
 ]
 
 CATEGORY_RULES = [
     {
         "topic_id": "1",
-        "category": "Geopolitical / Regional Risk",
-        "description": "Regional conflict, sanctions, shipping disruption, Gulf security, sovereign risk, trade corridor risk or regional stability."
+        "category": "Competitor Move",
+        "description": "A concrete move by a Qatar or GCC bank/fintech that could change competitive positioning, customer expectations, pricing, distribution, payments, transaction banking, digital capability or product depth."
     },
     {
         "topic_id": "2",
-        "category": "Banking / Financial Sector Development",
-        "description": "Banking sector, liquidity, credit, deposits, fintech, digital banking, capital, ratings, asset quality or financial-sector competition."
+        "category": "New Solution / Capability",
+        "description": "A newly launched banking, payments, AI, fintech, treasury, cash-management, blockchain, open-banking, wealth, SME, trade-finance or digital capability that Doha Bank could adopt, partner for, or build."
     },
     {
         "topic_id": "3",
-        "category": "Economic / Market / Regulatory Development",
-        "description": "Rates, inflation, GDP, oil and gas, fiscal policy, regulation, markets, investment flows or macro policy."
+        "category": "New Market / Client Pool",
+        "description": "An emerging Qatar/GCC sector, geography, client segment, project pipeline or investment theme creating identifiable revenue pools for corporate, wholesale, retail, treasury, wealth or transaction banking."
     },
     {
         "topic_id": "4",
-        "category": "Qatar / GCC Business Opportunity",
-        "description": "Qatar or GCC business growth, infrastructure, government spending, corporate expansion, real estate, LNG, tourism or investment opportunities."
+        "category": "Major Client / Deal Opportunity",
+        "description": "A specific corporate expansion, government project, investment programme, infrastructure development, acquisition, financing need, trade corridor or large transaction that could create lending, deposits, payments, advisory, treasury or fee opportunities."
     },
     {
         "topic_id": "5",
-        "category": "Technology / Digital Banking / Fintech",
-        "description": "Digital banking, fintech, payments, AI, cybersecurity, open banking, customer experience or banking technology trends."
+        "category": "Strategic Threat / Disruption",
+        "description": "A competitor, technology, regulatory, funding, market-structure or business-model development that could erode Doha Bank revenue, margins, deposits, clients, fees or strategic relevance."
     },
     {
         "topic_id": "6",
-        "category": "Corporate / Wholesale Banking Opportunity",
-        "description": "Corporate banking, wholesale banking, trade finance, cash management, project finance, treasury solutions or sector-specific client opportunities."
+        "category": "White-Space Opportunity",
+        "description": "A commercially credible gap where peers are moving, clients have an unmet need, or a new ecosystem is forming and Doha Bank could differentiate with a new proposition, partnership or market entry."
     },
 ]
 
@@ -622,75 +625,75 @@ def fallback_topics(news_items):
     return [
         {
             "topic_id": "1",
-            "category": "Geopolitical / Regional Risk",
-            "title": "Regional risk and trade corridor disruption implications for Doha Bank",
-            "source_title": "Regional geopolitical and trade corridor developments",
-            "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.aljazeera.com/economy/",
+            "category": "Competitor Move",
+            "title": "No sufficiently material Qatar/GCC competitor move identified this cycle",
+            "source_title": "Competitive-intelligence scan",
+            "source_name": "DB Strategy Intelligence Filter",
+            "source_url": "#",
             "source_date": TODAY,
-            "source_excerpt": "Regional geopolitical developments can affect trade flows, client activity and risk sentiment across Gulf markets.",
-            "why_it_matters": "Regional risk can affect corporate confidence, trade finance flows, treasury positioning and risk appetite across Qatar and the wider GCC.",
-            "potential_doha_bank_angle": "Assess exposed corporate sectors, trade finance demand, cash management needs, liquidity buffers and client advisory opportunities."
+            "source_excerpt": "No sufficiently material competitor announcement passed the commercial relevance threshold.",
+            "why_it_matters": "The briefing should not manufacture significance when there is no material competitive move.",
+            "potential_doha_bank_angle": "Maintain watch on payments, transaction banking, digital, wealth, SME and corporate propositions."
         },
         {
             "topic_id": "2",
-            "category": "Banking / Financial Sector Development",
-            "title": "GCC banking liquidity and corporate credit demand",
-            "source_title": "Regional liquidity and corporate banking conditions",
-            "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.cnbc.com/finance/",
+            "category": "New Solution / Capability",
+            "title": "No sufficiently material new banking solution identified this cycle",
+            "source_title": "Solution-intelligence scan",
+            "source_name": "DB Strategy Intelligence Filter",
+            "source_url": "#",
             "source_date": TODAY,
-            "source_excerpt": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
-            "why_it_matters": "Liquidity conditions influence corporate borrowing appetite, deposit competition and pricing discipline across GCC banks.",
-            "potential_doha_bank_angle": "Assess corporate lending opportunities, deposit mobilisation, sector exposure and relationship banking priorities."
+            "source_excerpt": "No new solution passed the threshold for likely customer, revenue or operating-model impact.",
+            "why_it_matters": "Only capabilities with a credible strategic or commercial implication should reach management.",
+            "potential_doha_bank_angle": "Continue scanning payments, AI, open banking, blockchain, treasury and digital propositions."
         },
         {
             "topic_id": "3",
-            "category": "Economic / Market / Regulatory Development",
-            "title": "Interest rate outlook and implications for Doha Bank margins",
-            "source_title": "Global interest rate and banking market developments",
-            "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.cnbc.com/markets/",
+            "category": "New Market / Client Pool",
+            "title": "No sufficiently specific new Qatar/GCC revenue pool identified this cycle",
+            "source_title": "Market-opportunity scan",
+            "source_name": "DB Strategy Intelligence Filter",
+            "source_url": "#",
             "source_date": TODAY,
-            "source_excerpt": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
-            "why_it_matters": "Rate expectations directly affect funding cost, lending yields, treasury positioning and net interest margin.",
-            "potential_doha_bank_angle": "Assess deposit repricing, loan yield sensitivity, liquidity positioning and opportunities to protect margin."
+            "source_excerpt": "No market development was specific enough to identify an actionable new client or revenue pool.",
+            "why_it_matters": "Broad macro growth is not enough; the opportunity must map to a client segment and banking need.",
+            "potential_doha_bank_angle": "Keep focus on sectors where lending, deposits, transaction banking, treasury or advisory demand can be identified."
         },
         {
             "topic_id": "4",
-            "category": "Qatar / GCC Business Opportunity",
-            "title": "Qatar and GCC investment activity as a business opportunity for Doha Bank",
-            "source_title": "Qatar and GCC investment activity",
-            "source_name": "Fallback Strategy Topic",
-            "source_url": "https://thepeninsulaqatar.com/",
+            "category": "Major Client / Deal Opportunity",
+            "title": "No sufficiently actionable major deal opportunity identified this cycle",
+            "source_title": "Deal-opportunity scan",
+            "source_name": "DB Strategy Intelligence Filter",
+            "source_url": "#",
             "source_date": TODAY,
-            "source_excerpt": "Qatar and GCC investment activity can create new lending, advisory and transaction banking opportunities.",
-            "why_it_matters": "Investment activity supports corporate expansion, project finance, cash management and deposit opportunities.",
-            "potential_doha_bank_angle": "Identify sectors with rising funding needs and strengthen targeted corporate coverage."
+            "source_excerpt": "No announced project, expansion or transaction passed the actionability threshold.",
+            "why_it_matters": "Management attention should go to named projects, sectors or counterparties with plausible banking-wallet potential.",
+            "potential_doha_bank_angle": "Continue monitoring major Qatar/GCC capex, acquisitions, government projects and corporate expansions."
         },
         {
             "topic_id": "5",
-            "category": "Technology / Digital Banking / Fintech",
-            "title": "Digital banking and fintech trends shaping customer expectations",
-            "source_title": "Digital banking and fintech developments",
-            "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.bis.org/",
+            "category": "Strategic Threat / Disruption",
+            "title": "No material strategic disruption identified this cycle",
+            "source_title": "Threat-intelligence scan",
+            "source_name": "DB Strategy Intelligence Filter",
+            "source_url": "#",
             "source_date": TODAY,
-            "source_excerpt": "Digital banking and fintech developments are reshaping customer expectations and competitive positioning.",
-            "why_it_matters": "Digital capability affects customer retention, fee income, cost efficiency and competitive differentiation.",
-            "potential_doha_bank_angle": "Assess digital product gaps, payment opportunities, customer migration and efficiency initiatives."
+            "source_excerpt": "No development passed the threshold for a credible threat to clients, revenue pools, deposits, fees or competitive relevance.",
+            "why_it_matters": "Generic risk commentary is intentionally excluded.",
+            "potential_doha_bank_angle": "Monitor structural threats rather than ordinary market volatility."
         },
         {
             "topic_id": "6",
-            "category": "Corporate / Wholesale Banking Opportunity",
-            "title": "Corporate banking opportunities from trade finance and cash management demand",
-            "source_title": "Corporate banking and transaction banking developments",
-            "source_name": "Fallback Strategy Topic",
-            "source_url": "https://www.cnbc.com/finance/",
+            "category": "White-Space Opportunity",
+            "title": "No sufficiently credible white-space opportunity identified this cycle",
+            "source_title": "White-space scan",
+            "source_name": "DB Strategy Intelligence Filter",
+            "source_url": "#",
             "source_date": TODAY,
-            "source_excerpt": "Corporate banking demand can create opportunities in trade finance, treasury and cash management services.",
-            "why_it_matters": "Wholesale banking opportunities support fee income, deposit mobilisation and relationship-led growth.",
-            "potential_doha_bank_angle": "Prioritise corporate clients with rising trade, liquidity and treasury management needs."
+            "source_excerpt": "No unmet need or emerging ecosystem passed the commercial differentiation threshold.",
+            "why_it_matters": "White-space ideas should be evidence-led, not generic brainstorming.",
+            "potential_doha_bank_angle": "Continue comparing peer moves with Doha Bank's product and market footprint."
         }
     ]
 
@@ -742,64 +745,72 @@ def validate_topics(topics):
 
 def ai_select_topics(news_items, bank_name):
     if len(news_items) < 6:
-        print("WARNING: Not enough relevant news items. Using strategic fallback topics.")
+        print("WARNING: Not enough relevant intelligence items. Using selective fallback topics.")
         return fallback_topics(news_items)
 
     prompt = f"""
-You are DB Strategy AI Analyst.
+You are the competitive-intelligence analyst for the Chief Strategy Officer of {bank_name}.
 
-Select exactly 6 strong weekly strategy article topics for {bank_name}.
+Your job is NOT to produce a broad news digest.
+Your job is to uncover developments that could change where Doha Bank competes, what it sells, who it sells to, how it wins, or where new revenue pools are forming.
 
-Mandatory topic variety:
-- Topic 1 must be category: Geopolitical / Regional Risk.
-- Topic 2 must be category: Banking / Financial Sector Development.
-- Topic 3 must be category: Economic / Market / Regulatory Development.
-- Topic 4 must be category: Qatar / GCC Business Opportunity.
-- Topic 5 must be category: Technology / Digital Banking / Fintech.
-- Topic 6 must be category: Corporate / Wholesale Banking Opportunity.
-
-Category definitions:
+Select exactly 6 items, one for each category below:
 {json.dumps(CATEGORY_RULES, ensure_ascii=False, indent=2)}
 
-Strict rules:
-- Topics must be relevant to Doha Bank.
-- Select exactly one topic from each category.
-- Do not select substantially similar topics.
-- Do not select all topics from the same geography, same sector or same driver of impact.
-- Avoid repeating common weekly themes such as interest rates, LNG, oil prices or GCC banking liquidity unless there is a clearly new development.
-- Direct official announcements by Qatar competitor banks are a top-priority intelligence category.
-- When a Qatar competitor launches or signs a strategically meaningful partnership, product, technology, payment capability, transaction-banking capability, open-banking initiative, blockchain solution, AI capability, corporate-banking solution, or major capital-markets initiative, strongly prefer it over generic global news.
-- Treat competitor moves as especially relevant when they could change customer expectations, corporate liquidity services, payments, cross-border settlement, fee income, digital capability, or Doha Bank's competitive position.
-- Do not discard a competitor story merely because it is "raw" or has not yet been covered by a newspaper; an official bank announcement is a valid primary source.
-- Geography is a hard prioritisation rule: Qatar first, GCC second, global third.
-- Aim for at least 4 of the 6 selected topics to be Qatar/GCC-focused whenever suitable regional news exists.
-- Aim for at least 2 Qatar-specific topics whenever suitable Qatar news exists.
-- Topic 4 MUST be Qatar/GCC-focused and should preferably be Qatar-specific.
-- Prefer topics linked to Qatar banking, QCB, government spending, infrastructure, real estate, LNG/energy, investment, trade, corporate expansion, capital markets, regulation, liquidity, credit demand, or major client sectors.
-- GCC topics should preferably relate to banking, sovereign/fiscal activity, corporate investment, trade, energy, regulation, liquidity, or cross-border business relevant to Doha Bank.
-- A global topic may be selected only when there is a clear transmission channel into Qatar/GCC and a materially stronger Doha Bank impact than available regional topics.
-- Do not select a global story merely because it is prominent internationally.
-- If four or more credible Qatar/GCC candidates exist in the supplied news, use them before filling remaining slots with global items.
-- Do not select sports, entertainment, weather, lifestyle, podcasts, or generic human-interest stories.
-- Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, regulatory, geopolitical, technology or trade-finance relevance.
-- Each topic must explain a specific opportunity or risk for Doha Bank.
-- Preserve source_date from the selected news item exactly.
-- Preserve source_name and source_url from the selected news item.
-- If source_type is "official_competitor_announcement", preserve that fact and competitor_bank where available.
-- source_excerpt must be taken from the selected news item's summary where available.
-- source_excerpt should be 2 to 3 sentences where possible, up to 420 characters.
-- Do not invent source_excerpt.
-- If summary is too short, use the article title as support.
-- If available news is weak, still maintain the six mandatory categories and choose the strongest strategic interpretation.
+HARD FILTER — reject an item unless at least one is true:
+1. A named Qatar/GCC competitor is launching, partnering, entering, acquiring, pricing, financing, digitising or changing a proposition.
+2. A new banking/fintech/payment/AI/treasury/cash-management/trade-finance/open-banking/blockchain capability is becoming commercially relevant.
+3. A specific new Qatar/GCC market, sector, project pipeline, geography or client segment is creating an identifiable banking revenue pool.
+4. A named major company, government entity, investor or project is creating a plausible lending, deposit, payments, treasury, advisory, trade-finance or fee opportunity.
+5. A structural threat could take clients, deposits, payments flows, fee pools or strategic relevance away from Doha Bank.
+6. There is evidence of a white-space opportunity that Doha Bank could credibly enter with a proposition, partnership or market move.
+
+REJECT:
+- generic GDP, inflation, oil-price, Fed, ECB, IMF or global-market stories unless they directly create one of the six outcomes above;
+- generic "GCC growth", "Qatar economy remains strong", "rates may fall", "oil rises", or "AI is changing banking";
+- awards, CSR, sponsorships, routine earnings, ceremonial MoUs with no commercial capability, and marketing campaigns;
+- stories whose Doha Bank implication is merely "monitor", "remain vigilant", "support growth", or "assess impact";
+- old themes with no new action, entrant, product, customer segment, project or competitive move.
+
+GEOGRAPHIC PRIORITY:
+- Qatar first.
+- GCC second.
+- Global only if it introduces a capability/business model likely to reach Qatar/GCC soon.
+- Aim for at least 5 of 6 items to be Qatar/GCC-specific when the evidence supports it.
+
+COMPETITOR PRIORITY:
+- Direct Qatar competitor announcements are extremely important.
+- Give particular weight to QNB, QIB, Dukhan Bank, Commercial Bank, Masraf Al Rayan, Ahlibank Qatar and QIIB.
+- Also surface GCC banks/fintechs entering propositions that could be replicated in Qatar.
+- A primary-source bank announcement is valid intelligence even if newspapers have not covered it.
+
+FOR EACH SELECTED ITEM, infer a sharp commercial thesis.
+It must answer:
+- What is actually new?
+- Who is moving?
+- What client need/revenue pool is involved?
+- Why does this matter now?
+- What could Doha Bank lose or win?
+- What concrete move should Strategy test?
+
+SCORING:
+Score every candidate internally from 0–5 on:
+- Novelty
+- Competitive intensity
+- Revenue-pool potential
+- Actionability
+- Qatar/GCC relevance
+
+Only select items with a total score of at least 15/25.
+If a category has no qualifying item, use a "No sufficiently material ... identified this cycle" fallback rather than filling space with weak news.
 
 Return only a valid JSON array. No markdown. No explanation.
-The response must start with [ and end with ].
 
 Required structure:
 [
   {{
     "topic_id": "1",
-    "category": "Geopolitical / Regional Risk",
+    "category": "Competitor Move",
     "title": "...",
     "source_title": "...",
     "source_name": "...",
@@ -807,93 +818,81 @@ Required structure:
     "source_date": "...",
     "source_excerpt": "...",
     "why_it_matters": "...",
-    "potential_doha_bank_angle": "..."
-  }},
-  {{
-    "topic_id": "2",
-    "category": "Banking / Financial Sector Development",
-    "title": "...",
-    "source_title": "...",
-    "source_name": "...",
-    "source_url": "...",
-    "source_date": "...",
-    "source_excerpt": "...",
-    "why_it_matters": "...",
-    "potential_doha_bank_angle": "..."
-  }},
-  {{
-    "topic_id": "3",
-    "category": "Economic / Market / Regulatory Development",
-    "title": "...",
-    "source_title": "...",
-    "source_name": "...",
-    "source_url": "...",
-    "source_date": "...",
-    "source_excerpt": "...",
-    "why_it_matters": "...",
-    "potential_doha_bank_angle": "..."
-  }},
-  {{
-    "topic_id": "4",
-    "category": "Qatar / GCC Business Opportunity",
-    "title": "...",
-    "source_title": "...",
-    "source_name": "...",
-    "source_url": "...",
-    "source_date": "...",
-    "source_excerpt": "...",
-    "why_it_matters": "...",
-    "potential_doha_bank_angle": "..."
-  }},
-  {{
-    "topic_id": "5",
-    "category": "Technology / Digital Banking / Fintech",
-    "title": "...",
-    "source_title": "...",
-    "source_name": "...",
-    "source_url": "...",
-    "source_date": "...",
-    "source_excerpt": "...",
-    "why_it_matters": "...",
-    "potential_doha_bank_angle": "..."
-  }},
-  {{
-    "topic_id": "6",
-    "category": "Corporate / Wholesale Banking Opportunity",
-    "title": "...",
-    "source_title": "...",
-    "source_name": "...",
-    "source_url": "...",
-    "source_date": "...",
-    "source_excerpt": "...",
-    "why_it_matters": "...",
-    "potential_doha_bank_angle": "..."
+    "potential_doha_bank_angle": "...",
+    "what_is_new": "...",
+    "named_rival_or_actor": "...",
+    "target_client_or_market": "...",
+    "revenue_pool": "...",
+    "recommended_strategy_test": "...",
+    "novelty_score": 0,
+    "competitive_intensity_score": 0,
+    "revenue_pool_score": 0,
+    "actionability_score": 0,
+    "qatar_gcc_relevance_score": 0
   }}
 ]
 
-Relevant news only:
+Use the exact same object structure for topic_ids 2 through 6 with their mandatory categories.
+
+Important source rules:
+- Preserve source_name, source_url and source_date from the selected item.
+- source_excerpt must come from the supplied source text; do not invent it.
+- Do not fabricate a competitor, product, market, project or client.
+- Do not turn a weak article into a strategic insight just to fill a category.
+
+Candidate intelligence:
 {json.dumps(news_items, ensure_ascii=False)}
 """
 
     try:
         text = ask_claude(prompt)
-        topics = validate_topics(extract_json_array(text))
+        topics = extract_json_array(text)
 
-        if len(topics) < 6:
-            print(f"WARNING: Claude returned only {len(topics)} valid topics. Filling remaining topics with fallback.")
-            fallback = fallback_topics(news_items)
+        # Keep only items that meet the score threshold or explicit "no material item" fallbacks.
+        filtered = []
+        expected = {rule["topic_id"]: rule["category"] for rule in CATEGORY_RULES}
 
-            existing_ids = {str(t.get("topic_id")) for t in topics}
-            for fb in fallback:
-                if str(fb.get("topic_id")) not in existing_ids:
-                    topics.append(fb)
-                if len(topics) >= 6:
-                    break
+        for idx, t in enumerate(topics[:6], 1):
+            t["topic_id"] = str(idx)
+            t["category"] = expected[str(idx)]
 
-        return topics[:6]
+            title = str(t.get("title", ""))
+            is_fallback = title.lower().startswith("no sufficiently") or title.lower().startswith("no material")
+
+            scores = [
+                t.get("novelty_score", 0),
+                t.get("competitive_intensity_score", 0),
+                t.get("revenue_pool_score", 0),
+                t.get("actionability_score", 0),
+                t.get("qatar_gcc_relevance_score", 0),
+            ]
+
+            try:
+                total_score = sum(float(x or 0) for x in scores)
+            except Exception:
+                total_score = 0
+
+            if is_fallback or total_score >= 15:
+                t.setdefault("source_date", TODAY)
+                t["source_excerpt"] = article_excerpt(
+                    t.get("source_excerpt")
+                    or t.get("source_title")
+                    or t.get("title")
+                )
+                filtered.append(t)
+
+        # Fill only missing category slots with transparent fallbacks.
+        fallback = fallback_topics(news_items)
+        by_id = {str(t.get("topic_id")): t for t in filtered}
+        final = []
+        for fb in fallback:
+            tid = str(fb["topic_id"])
+            final.append(by_id.get(tid, fb))
+
+        return final[:6]
 
     except Exception as e:
-        print(f"WARNING: Claude topic generation failed. Using strategic fallback topics. Error: {e}")
+        print(f"WARNING: Competitive-intelligence selection failed. Using selective fallback topics. Error: {e}")
         return fallback_topics(news_items)
 
 
@@ -926,6 +925,18 @@ def build_approval_email(drafts, approval_webhook_url):
   <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:{BLUE}; font-weight:bold;">Full article option {html.escape(topic_id)}</p>
   <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; color:{SLATE}; font-weight:bold;">{html.escape(category)}</p>
   <h2 style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:24px; line-height:1.25; color:{NAVY};">{html.escape(t.get('title', ''))}</h2>
+  <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.55; color:{SLATE};">
+    <strong>What is new:</strong> {html.escape(t.get('what_is_new', ''))}
+  </p>
+  <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.55; color:{SLATE};">
+    <strong>Rival / actor:</strong> {html.escape(t.get('named_rival_or_actor', ''))}
+  </p>
+  <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.55; color:{SLATE};">
+    <strong>Revenue pool / market:</strong> {html.escape(t.get('revenue_pool', ''))}
+  </p>
+  <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.55; color:{SLATE};">
+    <strong>Strategy test:</strong> {html.escape(t.get('recommended_strategy_test', ''))}
+  </p>
   <p style="margin:0 0 12px 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.55; color:{SLATE};">
     <strong>Source excerpt:</strong> {html.escape(t.get('source_excerpt', ''))}
   </p>
