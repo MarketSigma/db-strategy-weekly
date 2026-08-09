@@ -21,13 +21,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate 3 full draft articles from news + Supabase metrics
+      - name: Generate 6 full draft articles from news + Supabase metrics
         env:
           SUPABASE_URL: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DB_STRATEGY_WEEKLY_SUPABASE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: claude-sonnet-5
           APPROVAL_WEBHOOK_URL: ${{ secrets.APPROVAL_WEBHOOK_URL }}
+          DB_LOGO_URL: ${{ secrets.DB_LOGO_URL }}
         run: |
           python generate_news_drafts.py --out drafts.html --json-out drafts.json --bank "Doha Bank Q.P.S.C."
 
@@ -43,6 +44,7 @@ jobs:
           DB_STRATEGY_WEEKLY_APPROVER_EMAIL: ${{ secrets.DB_STRATEGY_WEEKLY_APPROVER_EMAIL }}
           DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO: ""
           DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: Approval Required — DB Strategy Weekly
+          DB_LOGO_URL: ${{ secrets.DB_LOGO_URL }}
         run: |
           python send_email.py drafts.html
 
@@ -56,3 +58,8 @@ jobs:
             strategy_weekly_option_1.html
             strategy_weekly_option_2.html
             strategy_weekly_option_3.html
+            strategy_weekly_option_4.html
+            strategy_weekly_option_5.html
+            strategy_weekly_option_6.html
+
+    
