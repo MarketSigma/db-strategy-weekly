@@ -4,7 +4,9 @@ import html
 import argparse
 import datetime
 from email.utils import parsedate_to_datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
+from urllib.request import Request, urlopen
+from html.parser import HTMLParser
 import feedparser
 import anthropic
 
@@ -124,6 +126,261 @@ def geographic_focus(title, summary, source_region="global"):
         return "GCC", 65
 
     return "Global", 0
+
+
+# Direct monitoring of official Qatar-bank newsrooms.
+# This complements RSS feeds: competitor announcements are often published on
+# bank websites before (or without) being picked up by general news RSS.
+COMPETITOR_NEWSROOMS = [
+    {
+        "bank": "Dukhan Bank",
+        "listing_url": "https://www.dukhanbank.com/media-center/press-release",
+        "link_contains": "/media-center/press-release/",
+        "priority": 260,
+    },
+    {
+        "bank": "QNB",
+        "listing_url": "https://www.qnb.com/sites/qnb/qnbglobal/page/en/ennewsandinsight.html",
+        "link_contains": "/sites/qnb/",
+        "priority": 235,
+    },
+    {
+        "bank": "Qatar Islamic Bank",
+        "listing_url": "https://www.qib.com.qa/en/about-us/media-center",
+        "link_contains": "/about-us/media-center/news/",
+        "priority": 240,
+    },
+    {
+        "bank": "Commercial Bank",
+        "listing_url": "https://www.cbq.qa/en/about-us/news",
+        "link_contains": "/en/about-us/news/",
+        "priority": 240,
+    },
+]
+
+COMPETITOR_STRATEGIC_TERMS = [
+    "kinexys", "blockchain", "deposit account", "open banking", "fintech",
+    "digital banking", "digital", "payments", "payment", "cross-border",
+    "cash management", "transaction banking", "trade finance", "treasury",
+    "corporate banking", "wholesale banking", "partnership", "strategic partnership",
+    "agreement", "signs", "launch", "launches", "ai", "artificial intelligence",
+    "cybersecurity", "cloud", "api", "instant payment", "wallet", "wealth",
+    "asset management", "capital markets", "bond", "sukuk", "qcb",
+    "liquidity", "remittance", "acquiring", "merchant", "visa", "mastercard",
+    "j.p. morgan", "jp morgan", "jpmorgan", "kinexys by j.p. morgan"
+]
+
+
+class _NewsroomHTMLParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+        self._href = None
+        self._anchor_parts = []
+        self.title = ""
+        self._in_title = False
+        self.meta_description = ""
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+
+        if tag == "a":
+            self._href = attrs.get("href")
+            self._anchor_parts = []
+
+        if tag == "title":
+            self._in_title = True
+
+        if tag == "meta":
+            name = (attrs.get("name") or attrs.get("property") or "").lower()
+            if name in ("description", "og:description") and not self.meta_description:
+                self.meta_description = clean_text(attrs.get("content", ""))
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._anchor_parts.append(data)
+        if self._in_title:
+            self.title += data
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._href is not None:
+            anchor_text = clean_text(" ".join(self._anchor_parts))
+            self.links.append((self._href, anchor_text))
+            self._href = None
+            self._anchor_parts = []
+
+        if tag == "title":
+            self._in_title = False
+
+
+def fetch_html(url, timeout=18):
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (compatible; DBStrategyWeekly/1.0; "
+            "+https://github.com/MarketSigma)"
+        ),
+        "Accept": "text/html,application/xhtml+xml",
+    }
+    req = Request(url, headers=headers)
+
+    with urlopen(req, timeout=timeout) as response:
+        raw = response.read()
+
+    # Most monitored sites are UTF-8; errors='replace' keeps the workflow alive
+    # if a page contains a malformed byte.
+    return raw.decode("utf-8", errors="replace")
+
+
+def extract_page_text(raw_html):
+    # Lightweight text extraction without adding another pip dependency.
+    text = re.sub(r"(?is)<script.*?</script>", " ", raw_html)
+    text = re.sub(r"(?is)<style.*?</style>", " ", text)
+    text = re.sub(r"(?is)<[^>]+>", " ", text)
+    return clean_text(text)
+
+
+def extract_article_date(page_text):
+    patterns = [
+        r"\b(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2})\b",
+        r"\b((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+20\d{2})\b",
+        r"\b(\d{1,2}/\d{1,2}/20\d{2})\b",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, page_text, flags=re.I)
+        if match:
+            return clean_text(match.group(1))
+
+    return ""
+
+
+def competitor_relevance_score(title, summary):
+    combined = f"{title} {summary}".lower()
+
+    score = 0
+    for term in COMPETITOR_STRATEGIC_TERMS:
+        if term in combined:
+            score += 18
+
+    # Strategic competitor moves should outrank awards, CSR and campaigns.
+    if any(x in combined for x in [
+        "award", "awards", "prize", "promotion", "campaign",
+        "community", "charity", "ramadan", "travel with confidence"
+    ]):
+        score -= 35
+
+    return score
+
+
+def fetch_competitor_news(max_per_bank=12):
+    """
+    Pull recent announcement links directly from official Qatar-bank newsrooms.
+
+    These items receive a strong priority score because a direct local competitor
+    move can be strategically important even when it has not yet appeared in RSS.
+    """
+    items = []
+    seen = set()
+
+    for source in COMPETITOR_NEWSROOMS:
+        bank = source["bank"]
+        listing_url = source["listing_url"]
+        link_contains = source["link_contains"]
+        base_priority = int(source["priority"])
+
+        try:
+            listing_html = fetch_html(listing_url)
+            parser = _NewsroomHTMLParser()
+            parser.feed(listing_html)
+
+            candidates = []
+            candidate_seen = set()
+
+            for href, anchor_text in parser.links:
+                if not href:
+                    continue
+
+                absolute_url = urljoin(listing_url, href)
+                normalized = absolute_url.split("#")[0].split("?")[0].rstrip("/")
+
+                if link_contains not in absolute_url:
+                    continue
+                if normalized in candidate_seen:
+                    continue
+                if normalized.rstrip("/") == listing_url.rstrip("/"):
+                    continue
+
+                candidate_seen.add(normalized)
+                candidates.append((absolute_url, anchor_text))
+
+                if len(candidates) >= max_per_bank:
+                    break
+
+            for article_url, anchor_text in candidates:
+                try:
+                    article_html = fetch_html(article_url)
+                    article_parser = _NewsroomHTMLParser()
+                    article_parser.feed(article_html)
+
+                    page_text = extract_page_text(article_html)
+                    title = clean_text(anchor_text)
+
+                    # Use the HTML title if the listing anchor is generic.
+                    html_title = clean_text(article_parser.title)
+                    if len(title) < 12 or title.lower() in ("read more", "learn more", "news"):
+                        title = html_title
+
+                    # Strip common site-title suffixes.
+                    title = re.sub(
+                        r"\s*[\|\-–—]\s*(Dukhan Bank|QNB|Qatar Islamic Bank|QIB|Commercial Bank).*$",
+                        "",
+                        title,
+                        flags=re.I,
+                    ).strip()
+
+                    description = clean_text(article_parser.meta_description)
+                    if not description:
+                        # First useful portion of the article page is sufficient
+                        # for Claude to evaluate strategic relevance.
+                        description = page_text[:900]
+
+                    if not title:
+                        continue
+
+                    key = dedupe_key(article_url, title)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+
+                    strategic_score = competitor_relevance_score(title, description)
+                    published = extract_article_date(page_text)
+
+                    items.append({
+                        "title": title,
+                        "summary": description[:1200],
+                        "link": article_url,
+                        "source": f"{bank} — Official Newsroom",
+                        "source_date": published,
+                        "geography": "Qatar",
+                        "competitor_bank": bank,
+                        "source_type": "official_competitor_announcement",
+                        "_priority_score": base_priority + strategic_score,
+                    })
+
+                except Exception as article_error:
+                    print(
+                        f"WARNING: Could not read competitor article from {bank}: "
+                        f"{article_url}. Error: {article_error}"
+                    )
+
+        except Exception as e:
+            print(
+                f"WARNING: Failed competitor newsroom: {bank} ({listing_url}). "
+                f"Error: {e}"
+            )
+
+    items.sort(key=lambda x: x.get("_priority_score", 0), reverse=True)
+    return items
 
 
 BLOCKED_TERMS = [
@@ -255,9 +512,20 @@ def dedupe_key(link, title):
     return clean_text(title).lower()
 
 
-def fetch_news(max_items=120, sources_path="news_sources.json"):
+def fetch_news(max_items=140, sources_path="news_sources.json"):
     items = []
     seen = set()
+
+    # 1) Direct Qatar competitor monitoring comes first.
+    competitor_items = fetch_competitor_news()
+    for item in competitor_items:
+        key = dedupe_key(item.get("link"), item.get("title"))
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(item)
+
+    # 2) Broader Qatar/GCC/global RSS coverage.
     sources = load_news_sources(sources_path)
 
     for source_cfg in sources:
@@ -285,10 +553,10 @@ def fetch_news(max_items=120, sources_path="news_sources.json"):
                 if key in seen:
                     continue
 
-                seen.add(key)
-
                 if not is_relevant_news(title, summary):
                     continue
+
+                seen.add(key)
 
                 published_raw = entry.get("published", "") or entry.get("updated", "")
                 geo_focus, geo_score = geographic_focus(title, summary, source_region)
@@ -300,6 +568,7 @@ def fetch_news(max_items=120, sources_path="news_sources.json"):
                     "source": feed_source_name,
                     "source_date": format_source_date(published_raw),
                     "geography": geo_focus,
+                    "source_type": "rss",
                     "_priority_score": source_priority + geo_score,
                 })
 
@@ -307,18 +576,26 @@ def fetch_news(max_items=120, sources_path="news_sources.json"):
             print(f"WARNING: Failed RSS source: {url}. Error: {e}")
             continue
 
-    # Put Qatar first, GCC second, and global stories last.
-    # Claude still receives global stories, but only after the strongest regional candidates.
+    # Strong official competitor announcements can now naturally outrank generic
+    # global stories. Qatar and GCC RSS stories still retain high regional weight.
     items.sort(key=lambda x: x.get("_priority_score", 0), reverse=True)
 
     trimmed = items[:max_items]
     for item in trimmed:
         item.pop("_priority_score", None)
 
+    competitor_count = sum(
+        1 for x in trimmed if x.get("source_type") == "official_competitor_announcement"
+    )
     qatar_count = sum(1 for x in trimmed if x.get("geography") == "Qatar")
     gcc_count = sum(1 for x in trimmed if x.get("geography") == "GCC")
     global_count = sum(1 for x in trimmed if x.get("geography") == "Global")
-    print(f"News mix supplied to AI: Qatar={qatar_count}, GCC={gcc_count}, Global={global_count}")
+
+    print(
+        "News mix supplied to AI: "
+        f"Competitor={competitor_count}, Qatar={qatar_count}, "
+        f"GCC={gcc_count}, Global={global_count}"
+    )
 
     return trimmed
 
@@ -490,6 +767,10 @@ Strict rules:
 - Do not select substantially similar topics.
 - Do not select all topics from the same geography, same sector or same driver of impact.
 - Avoid repeating common weekly themes such as interest rates, LNG, oil prices or GCC banking liquidity unless there is a clearly new development.
+- Direct official announcements by Qatar competitor banks are a top-priority intelligence category.
+- When a Qatar competitor launches or signs a strategically meaningful partnership, product, technology, payment capability, transaction-banking capability, open-banking initiative, blockchain solution, AI capability, corporate-banking solution, or major capital-markets initiative, strongly prefer it over generic global news.
+- Treat competitor moves as especially relevant when they could change customer expectations, corporate liquidity services, payments, cross-border settlement, fee income, digital capability, or Doha Bank's competitive position.
+- Do not discard a competitor story merely because it is "raw" or has not yet been covered by a newspaper; an official bank announcement is a valid primary source.
 - Geography is a hard prioritisation rule: Qatar first, GCC second, global third.
 - Aim for at least 4 of the 6 selected topics to be Qatar/GCC-focused whenever suitable regional news exists.
 - Aim for at least 2 Qatar-specific topics whenever suitable Qatar news exists.
@@ -504,6 +785,7 @@ Strict rules:
 - Each topic must explain a specific opportunity or risk for Doha Bank.
 - Preserve source_date from the selected news item exactly.
 - Preserve source_name and source_url from the selected news item.
+- If source_type is "official_competitor_announcement", preserve that fact and competitor_bank where available.
 - source_excerpt must be taken from the selected news item's summary where available.
 - source_excerpt should be 2 to 3 sentences where possible, up to 420 characters.
 - Do not invent source_excerpt.
