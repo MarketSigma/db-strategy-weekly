@@ -22,26 +22,109 @@ BLUE = "#0072ce"
 SLATE = "#2c3e54"
 MUTED = "#8a99ad"
 
-NEWS_SOURCES = [
-    "https://www.cnbc.com/id/10001147/device/rss/rss.html",
-    "https://www.cnbc.com/id/10000664/device/rss/rss.html",
-    "https://www.cnbc.com/id/10072762/device/rss/rss.html",
-    "https://feeds.bbci.co.uk/news/business/rss.xml",
-    "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "https://www.aljazeera.com/xml/rss/all.xml",
-    "https://www.imf.org/en/News/RSS",
-    "https://www.worldbank.org/en/news/all?format=rss",
-    "https://www.bis.org/rss/press_releases.xml",
-    "https://www.bis.org/rss/speeches.xml",
-    "https://www.fitchratings.com/site/pr/rss",
-    "https://www.spglobal.com/ratings/en/rss",
-    "https://www.investing.com/rss/news_25.rss",
-    "https://www.investing.com/rss/news_301.rss",
-    "https://www.investing.com/rss/news_285.rss",
-    "https://www.gulf-times.com/rss",
-    "https://thepeninsulaqatar.com/rss",
-    "https://www.arabnews.com/rss.xml",
+DEFAULT_NEWS_SOURCES = [
+    {"name": "Gulf Times", "rss": "https://www.gulf-times.com/rss", "region": "qatar", "priority": 100},
+    {"name": "The Peninsula Qatar", "rss": "https://thepeninsulaqatar.com/rss", "region": "qatar", "priority": 100},
+    {"name": "Arab News", "rss": "https://www.arabnews.com/rss.xml", "region": "gcc", "priority": 80},
+    {"name": "Al Jazeera", "rss": "https://www.aljazeera.com/xml/rss/all.xml", "region": "regional", "priority": 65},
+    {"name": "CNBC Finance", "rss": "https://www.cnbc.com/id/10000664/device/rss/rss.html", "region": "global", "priority": 30},
+    {"name": "CNBC Markets", "rss": "https://www.cnbc.com/id/10001147/device/rss/rss.html", "region": "global", "priority": 30},
+    {"name": "CNBC World", "rss": "https://www.cnbc.com/id/10072762/device/rss/rss.html", "region": "global", "priority": 25},
+    {"name": "BBC Business", "rss": "https://feeds.bbci.co.uk/news/business/rss.xml", "region": "global", "priority": 25},
+    {"name": "BBC World", "rss": "https://feeds.bbci.co.uk/news/world/rss.xml", "region": "global", "priority": 20},
+    {"name": "IMF", "rss": "https://www.imf.org/en/News/RSS", "region": "global", "priority": 25},
+    {"name": "World Bank", "rss": "https://www.worldbank.org/en/news/all?format=rss", "region": "global", "priority": 20},
+    {"name": "BIS Press Releases", "rss": "https://www.bis.org/rss/press_releases.xml", "region": "global", "priority": 25},
+    {"name": "BIS Speeches", "rss": "https://www.bis.org/rss/speeches.xml", "region": "global", "priority": 20},
+    {"name": "Fitch Ratings", "rss": "https://www.fitchratings.com/site/pr/rss", "region": "global", "priority": 25},
+    {"name": "S&P Global Ratings", "rss": "https://www.spglobal.com/ratings/en/rss", "region": "global", "priority": 25},
+    {"name": "Investing Economy", "rss": "https://www.investing.com/rss/news_25.rss", "region": "global", "priority": 20},
+    {"name": "Investing Commodities", "rss": "https://www.investing.com/rss/news_301.rss", "region": "global", "priority": 20},
+    {"name": "Investing Banking", "rss": "https://www.investing.com/rss/news_285.rss", "region": "global", "priority": 20},
 ]
+
+
+def load_news_sources(path="news_sources.json"):
+    """
+    Load source configuration from news_sources.json.
+
+    Supported formats:
+    1) {"sources": [{"name": "...", "rss": "...", "region": "qatar", "priority": 100}]}
+    2) Legacy grouped format: {"global": [...], "regional": [...]}
+    """
+    if not os.path.exists(path):
+        return DEFAULT_NEWS_SOURCES
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if isinstance(data, dict) and isinstance(data.get("sources"), list):
+            sources = []
+            for item in data["sources"]:
+                if not isinstance(item, dict) or not item.get("rss"):
+                    continue
+                sources.append({
+                    "name": clean_text(item.get("name")) or source_name_from_url(item.get("rss")),
+                    "rss": str(item.get("rss")).strip(),
+                    "region": str(item.get("region") or "global").lower(),
+                    "priority": int(item.get("priority") or 0),
+                })
+            return sources or DEFAULT_NEWS_SOURCES
+
+        # Backward compatibility with the original grouped JSON.
+        if isinstance(data, dict):
+            sources = []
+            for group_name, items in data.items():
+                if not isinstance(items, list):
+                    continue
+                region = "qatar" if group_name.lower() == "regional" else group_name.lower()
+                for item in items:
+                    if isinstance(item, dict) and item.get("rss"):
+                        sources.append({
+                            "name": clean_text(item.get("name")) or source_name_from_url(item.get("rss")),
+                            "rss": str(item.get("rss")).strip(),
+                            "region": region,
+                            "priority": 80 if region in ("qatar", "gcc", "regional") else 25,
+                        })
+            return sources or DEFAULT_NEWS_SOURCES
+
+    except Exception as e:
+        print(f"WARNING: Could not load {path}; using built-in sources. Error: {e}")
+
+    return DEFAULT_NEWS_SOURCES
+
+
+QATAR_TERMS = [
+    "qatar", "doha", "qcb", "qatar central bank", "qatarenergy",
+    "qatar energy", "qatar investment authority", "qia", "qatar stock exchange",
+    "qe index", "ministry of finance qatar", "lusail", "ras laffan"
+]
+
+GCC_TERMS = [
+    "gcc", "gulf cooperation council", "saudi", "saudi arabia", "riyadh",
+    "uae", "united arab emirates", "dubai", "abu dhabi", "kuwait",
+    "bahrain", "oman", "muscat", "gulf banks", "gcc banks"
+]
+
+
+def geographic_focus(title, summary, source_region="global"):
+    combined = f"{title} {summary}".lower()
+
+    if any(term in combined for term in QATAR_TERMS):
+        return "Qatar", 140
+
+    if any(term in combined for term in GCC_TERMS):
+        return "GCC", 90
+
+    if source_region == "qatar":
+        return "Qatar", 110
+
+    if source_region in ("gcc", "regional"):
+        return "GCC", 65
+
+    return "Global", 0
+
 
 BLOCKED_TERMS = [
     "world cup", "football", "soccer", "sports", "match", "tournament",
@@ -172,16 +255,25 @@ def dedupe_key(link, title):
     return clean_text(title).lower()
 
 
-def fetch_news(max_items=100):
+def fetch_news(max_items=120, sources_path="news_sources.json"):
     items = []
     seen = set()
+    sources = load_news_sources(sources_path)
 
-    for url in NEWS_SOURCES:
+    for source_cfg in sources:
+        url = source_cfg["rss"]
+        source_region = source_cfg.get("region", "global")
+        source_priority = int(source_cfg.get("priority", 0))
+
         try:
             feed = feedparser.parse(url)
-            feed_source_name = clean_text(feed.feed.get("title", "")) or source_name_from_url(url)
+            feed_source_name = (
+                clean_text(source_cfg.get("name"))
+                or clean_text(feed.feed.get("title", ""))
+                or source_name_from_url(url)
+            )
 
-            for entry in feed.entries[:30]:
+            for entry in feed.entries[:40]:
                 title = clean_text(entry.get("title", ""))
                 summary = clean_text(entry.get("summary", ""))
                 link = entry.get("link", "")
@@ -199,6 +291,7 @@ def fetch_news(max_items=100):
                     continue
 
                 published_raw = entry.get("published", "") or entry.get("updated", "")
+                geo_focus, geo_score = geographic_focus(title, summary, source_region)
 
                 items.append({
                     "title": title,
@@ -206,13 +299,28 @@ def fetch_news(max_items=100):
                     "link": link,
                     "source": feed_source_name,
                     "source_date": format_source_date(published_raw),
+                    "geography": geo_focus,
+                    "_priority_score": source_priority + geo_score,
                 })
 
         except Exception as e:
             print(f"WARNING: Failed RSS source: {url}. Error: {e}")
             continue
 
-    return items[:max_items]
+    # Put Qatar first, GCC second, and global stories last.
+    # Claude still receives global stories, but only after the strongest regional candidates.
+    items.sort(key=lambda x: x.get("_priority_score", 0), reverse=True)
+
+    trimmed = items[:max_items]
+    for item in trimmed:
+        item.pop("_priority_score", None)
+
+    qatar_count = sum(1 for x in trimmed if x.get("geography") == "Qatar")
+    gcc_count = sum(1 for x in trimmed if x.get("geography") == "GCC")
+    global_count = sum(1 for x in trimmed if x.get("geography") == "Global")
+    print(f"News mix supplied to AI: Qatar={qatar_count}, GCC={gcc_count}, Global={global_count}")
+
+    return trimmed
 
 
 def article_excerpt(value, max_chars=420):
@@ -382,9 +490,15 @@ Strict rules:
 - Do not select substantially similar topics.
 - Do not select all topics from the same geography, same sector or same driver of impact.
 - Avoid repeating common weekly themes such as interest rates, LNG, oil prices or GCC banking liquidity unless there is a clearly new development.
-- Prefer Qatar and GCC topics first, especially topics linked to Qatar banking, liquidity, credit demand, government spending, infrastructure, real estate, LNG, energy, trade, regulation, or GCC corporate activity.
-- A global topic may be selected only if it has a materially stronger and clearly explainable impact on Doha Bank than available Qatar/GCC topics.
-- At least 3 of the 6 selected topics should be Qatar/GCC-focused when suitable Qatar/GCC news is available.
+- Geography is a hard prioritisation rule: Qatar first, GCC second, global third.
+- Aim for at least 4 of the 6 selected topics to be Qatar/GCC-focused whenever suitable regional news exists.
+- Aim for at least 2 Qatar-specific topics whenever suitable Qatar news exists.
+- Topic 4 MUST be Qatar/GCC-focused and should preferably be Qatar-specific.
+- Prefer topics linked to Qatar banking, QCB, government spending, infrastructure, real estate, LNG/energy, investment, trade, corporate expansion, capital markets, regulation, liquidity, credit demand, or major client sectors.
+- GCC topics should preferably relate to banking, sovereign/fiscal activity, corporate investment, trade, energy, regulation, liquidity, or cross-border business relevant to Doha Bank.
+- A global topic may be selected only when there is a clear transmission channel into Qatar/GCC and a materially stronger Doha Bank impact than available regional topics.
+- Do not select a global story merely because it is prominent internationally.
+- If four or more credible Qatar/GCC candidates exist in the supplied news, use them before filling remaining slots with global items.
 - Do not select sports, entertainment, weather, lifestyle, podcasts, or generic human-interest stories.
 - Do not select topics unless they have clear banking, economic, GCC, Qatar, liquidity, energy, interest-rate, credit, regulatory, geopolitical, technology or trade-finance relevance.
 - Each topic must explain a specific opportunity or risk for Doha Bank.
@@ -588,7 +702,7 @@ def main():
     approval_webhook_url = os.environ["APPROVAL_WEBHOOK_URL"]
 
     news = fetch_news()
-    print(f"Fetched {len(news)} relevant news items from expanded source list.")
+    print(f"Fetched {len(news)} relevant news items with Qatar/GCC prioritisation.")
 
     topics = ai_select_topics(news, args.bank)
     metrics = weekly.get_doha_bank_metrics(args.bank)
@@ -631,3 +745,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
