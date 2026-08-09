@@ -1,22 +1,113 @@
-{
-  "global": [
     {
-      "name": "BBC Business",
-      "rss": "https://feeds.bbci.co.uk/news/business/rss.xml"
+  "sources": [
+    {
+      "name": "Gulf Times",
+      "rss": "https://www.gulf-times.com/rss",
+      "region": "qatar",
+      "priority": 100
+    },
+    {
+      "name": "The Peninsula Qatar",
+      "rss": "https://thepeninsulaqatar.com/rss",
+      "region": "qatar",
+      "priority": 100
+    },
+    {
+      "name": "Arab News",
+      "rss": "https://www.arabnews.com/rss.xml",
+      "region": "gcc",
+      "priority": 80
+    },
+    {
+      "name": "Al Jazeera",
+      "rss": "https://www.aljazeera.com/xml/rss/all.xml",
+      "region": "regional",
+      "priority": 65
+    },
+    {
+      "name": "CNBC Finance",
+      "rss": "https://www.cnbc.com/id/10000664/device/rss/rss.html",
+      "region": "global",
+      "priority": 30
+    },
+    {
+      "name": "CNBC Markets",
+      "rss": "https://www.cnbc.com/id/10001147/device/rss/rss.html",
+      "region": "global",
+      "priority": 30
     },
     {
       "name": "CNBC World",
-      "rss": "https://www.cnbc.com/id/100727362/device/rss/rss.html"
+      "rss": "https://www.cnbc.com/id/10072762/device/rss/rss.html",
+      "region": "global",
+      "priority": 25
     },
     {
-      "name": "Al Jazeera Business",
-      "rss": "https://www.aljazeera.com/xml/rss/all.xml"
-    }
-  ],
-  "regional": [
+      "name": "BBC Business",
+      "rss": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "region": "global",
+      "priority": 25
+    },
     {
-      "name": "Gulf Times",
-      "rss": "https://www.gulf-times.com/rss"
+      "name": "BBC World",
+      "rss": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "region": "global",
+      "priority": 20
+    },
+    {
+      "name": "IMF",
+      "rss": "https://www.imf.org/en/News/RSS",
+      "region": "global",
+      "priority": 25
+    },
+    {
+      "name": "World Bank",
+      "rss": "https://www.worldbank.org/en/news/all?format=rss",
+      "region": "global",
+      "priority": 20
+    },
+    {
+      "name": "BIS Press Releases",
+      "rss": "https://www.bis.org/rss/press_releases.xml",
+      "region": "global",
+      "priority": 25
+    },
+    {
+      "name": "BIS Speeches",
+      "rss": "https://www.bis.org/rss/speeches.xml",
+      "region": "global",
+      "priority": 20
+    },
+    {
+      "name": "Fitch Ratings",
+      "rss": "https://www.fitchratings.com/site/pr/rss",
+      "region": "global",
+      "priority": 25
+    },
+    {
+      "name": "S&P Global Ratings",
+      "rss": "https://www.spglobal.com/ratings/en/rss",
+      "region": "global",
+      "priority": 25
+    },
+    {
+      "name": "Investing Economy",
+      "rss": "https://www.investing.com/rss/news_25.rss",
+      "region": "global",
+      "priority": 20
+    },
+    {
+      "name": "Investing Commodities",
+      "rss": "https://www.investing.com/rss/news_301.rss",
+      "region": "global",
+      "priority": 20
+    },
+    {
+      "name": "Investing Banking",
+      "rss": "https://www.investing.com/rss/news_285.rss",
+      "region": "global",
+      "priority": 20
     }
   ]
 }
+    
