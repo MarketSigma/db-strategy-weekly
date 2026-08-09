@@ -521,6 +521,14 @@ def fetch_news(max_items=140, sources_path="news_sources.json"):
 
     # 1) Direct Qatar competitor monitoring comes first.
     competitor_items = fetch_competitor_news()
+    print(f"Direct competitor monitor found {len(competitor_items)} announcement candidates.")
+    for ci in competitor_items[:10]:
+        print(
+            "COMPETITOR CANDIDATE | "
+            f"score={commercial_signal_score(ci)} | "
+            f"{ci.get('competitor_bank', '')} | {ci.get('title', '')}"
+        )
+
     for item in competitor_items:
         key = dedupe_key(item.get("link"), item.get("title"))
         if key in seen:
@@ -621,9 +629,173 @@ def article_excerpt(value, max_chars=420):
     return excerpt.rstrip() + "..."
 
 
+def commercial_signal_score(item):
+    """Deterministic commercial-intelligence score used before Claude."""
+    title = clean_text(item.get("title", ""))
+    summary = clean_text(item.get("summary", ""))
+    combined = f"{title} {summary}".lower()
+
+    score = 0
+
+    # Strong competitor / capability signals.
+    strong_terms = {
+        "kinexys": 45,
+        "blockchain": 30,
+        "open banking": 30,
+        "transaction banking": 30,
+        "cash management": 28,
+        "cross-border": 28,
+        "payments": 24,
+        "payment": 20,
+        "treasury": 22,
+        "trade finance": 22,
+        "project finance": 22,
+        "digital banking": 20,
+        "fintech": 20,
+        "artificial intelligence": 20,
+        " ai ": 18,
+        "api": 18,
+        "wallet": 16,
+        "wealth": 16,
+        "asset management": 16,
+        "partnership": 18,
+        "agreement": 16,
+        "launch": 18,
+        "launches": 18,
+        "go live": 25,
+        "goes live": 25,
+        "first islamic bank": 35,
+        "first bank": 30,
+        "qatar's first": 35,
+        "qatar’s first": 35,
+        "new market": 18,
+        "expansion": 18,
+        "data centre": 18,
+        "data center": 18,
+        "sukuk": 16,
+        "facility": 16,
+        "financing": 18,
+    }
+
+    for term, weight in strong_terms.items():
+        if term in combined:
+            score += weight
+
+    if item.get("source_type") == "official_competitor_announcement":
+        score += 45
+
+    if item.get("geography") == "Qatar":
+        score += 35
+    elif item.get("geography") == "GCC":
+        score += 20
+
+    # Down-rank low-strategy PR.
+    weak_terms = [
+        "award", "awards", "winner", "prize", "cash bonus", "campaign",
+        "sponsorship", "community", "charity", "children", "harrods"
+    ]
+    if any(term in combined for term in weak_terms):
+        score -= 80
+
+    return score
+
+
+def best_competitor_move(news_items):
+    candidates = []
+
+    for item in news_items:
+        if item.get("source_type") != "official_competitor_announcement":
+            continue
+
+        score = commercial_signal_score(item)
+        if score >= 80:
+            candidates.append((score, item))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    return candidates[0][1]
+
+
+def competitor_topic_from_item(item):
+    """Create a real Topic 1 from the strongest verified competitor announcement."""
+    title = clean_text(item.get("title", ""))
+    summary = article_excerpt(item.get("summary", ""), 420)
+    bank = clean_text(item.get("competitor_bank", "")) or clean_text(item.get("source", "Qatar competitor"))
+
+    combined = f"{title} {summary}".lower()
+
+    if "kinexys" in combined or "blockchain" in combined:
+        what_new = (
+            f"{bank} has introduced a new blockchain-enabled deposit and settlement capability "
+            "with J.P. Morgan's Kinexys network."
+        )
+        revenue_pool = (
+            "Large-corporate transaction banking, cross-border payments, treasury and liquidity-management flows."
+        )
+        strategy_test = (
+            "Assess demand among Doha Bank's top corporate clients for 24/7 cross-border settlement and "
+            "determine whether an equivalent partner-led capability should be pursued."
+        )
+        angle = (
+            "This raises the competitive benchmark for Qatar corporate transaction banking and could influence "
+            "where large clients place payments, liquidity-management and treasury activity."
+        )
+    elif "open banking" in combined:
+        what_new = f"{bank} has moved into a new open-banking capability or ecosystem partnership."
+        revenue_pool = "Digital payments, embedded finance, account connectivity and corporate/retail API services."
+        strategy_test = (
+            "Map the highest-value open-banking use cases for Doha Bank and identify whether to build, partner or pilot."
+        )
+        angle = (
+            "A local competitor is moving beyond conventional digital channels into ecosystem-based banking services."
+        )
+    else:
+        what_new = f"{bank} has announced a strategically relevant new product, partnership or market move."
+        revenue_pool = (
+            "The affected client wallet depends on the proposition, with potential implications for lending, deposits, "
+            "payments, treasury, fee income or customer acquisition."
+        )
+        strategy_test = (
+            "Benchmark the proposition against Doha Bank's current offer and identify the client segments where a response "
+            "could protect or create revenue."
+        )
+        angle = (
+            "The move is concrete, local and potentially relevant to Doha Bank's competitive position."
+        )
+
+    return {
+        "topic_id": "1",
+        "category": "Competitor Move",
+        "title": title,
+        "source_title": title,
+        "source_name": clean_text(item.get("source", "")),
+        "source_url": clean_text(item.get("link", "")),
+        "source_date": clean_text(item.get("source_date", "")) or TODAY,
+        "source_excerpt": summary,
+        "why_it_matters": angle,
+        "potential_doha_bank_angle": angle,
+        "what_is_new": what_new,
+        "named_rival_or_actor": bank,
+        "target_client_or_market": "Qatar corporate and transaction-banking clients",
+        "revenue_pool": revenue_pool,
+        "recommended_strategy_test": strategy_test,
+        "novelty_score": 5,
+        "competitive_intensity_score": 5,
+        "revenue_pool_score": 5,
+        "actionability_score": 5,
+        "qatar_gcc_relevance_score": 5,
+    }
+
+
 def fallback_topics(news_items):
-    return [
-        {
+    strongest_competitor = best_competitor_move(news_items)
+
+    if strongest_competitor:
+        topic_1 = competitor_topic_from_item(strongest_competitor)
+    else:
+        topic_1 = {
             "topic_id": "1",
             "category": "Competitor Move",
             "title": "No sufficiently material Qatar/GCC competitor move identified this cycle",
@@ -633,8 +805,16 @@ def fallback_topics(news_items):
             "source_date": TODAY,
             "source_excerpt": "No sufficiently material competitor announcement passed the commercial relevance threshold.",
             "why_it_matters": "The briefing should not manufacture significance when there is no material competitive move.",
-            "potential_doha_bank_angle": "Maintain watch on payments, transaction banking, digital, wealth, SME and corporate propositions."
-        },
+            "potential_doha_bank_angle": "Maintain watch on payments, transaction banking, digital, wealth, SME and corporate propositions.",
+            "what_is_new": "",
+            "named_rival_or_actor": "",
+            "target_client_or_market": "",
+            "revenue_pool": "",
+            "recommended_strategy_test": "",
+        }
+
+    return [
+        topic_1,
         {
             "topic_id": "2",
             "category": "New Solution / Capability",
@@ -884,6 +1064,28 @@ Candidate intelligence:
         # Fill only missing category slots with transparent fallbacks.
         fallback = fallback_topics(news_items)
         by_id = {str(t.get("topic_id")): t for t in filtered}
+
+        # Deterministic safeguard:
+        # if we have a high-signal official Qatar competitor announcement,
+        # it MUST become Topic 1 even if Claude under-scores or omits it.
+        strongest_competitor = best_competitor_move(news_items)
+        if strongest_competitor:
+            forced_topic_1 = competitor_topic_from_item(strongest_competitor)
+            ai_topic_1 = by_id.get("1")
+
+            # Keep Claude's richer wording only if it selected the same source.
+            if (
+                ai_topic_1
+                and clean_text(ai_topic_1.get("source_url", "")).rstrip("/")
+                == clean_text(forced_topic_1.get("source_url", "")).rstrip("/")
+            ):
+                forced_topic_1.update({
+                    k: v for k, v in ai_topic_1.items()
+                    if v not in ("", None, [])
+                })
+
+            by_id["1"] = forced_topic_1
+
         final = []
         for fb in fallback:
             tid = str(fb["topic_id"])
