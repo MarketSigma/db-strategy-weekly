@@ -44,11 +44,37 @@ def remove_overlap(bcc_list, to_list):
     return [x for x in bcc_list if x.lower() not in to_set]
 
 
+def prepare_inline_logo(html_body):
+    """
+    Embed the Doha Bank logo as an inline CID image when DB_LOGO_URL is set.
+
+    This is more reliable in Outlook desktop than relying on a normal remote
+    <img> request. If the secret is missing, the HTML is left unchanged.
+    """
+    logo_url = os.environ.get("DB_LOGO_URL", "").strip()
+
+    if not logo_url:
+        return html_body, []
+
+    cid = "doha-bank-logo"
+    updated_html = html_body.replace(logo_url, f"cid:{cid}")
+
+    attachment = {
+        "path": logo_url,
+        "filename": "doha-bank-logo.png",
+        "content_id": cid,
+    }
+
+    return updated_html, [attachment]
+
+
 def main():
     html_path = sys.argv[1] if len(sys.argv) > 1 else "drafts.html"
 
     with open(html_path, encoding="utf-8") as f:
         html = f.read()
+
+    html, inline_attachments = prepare_inline_logo(html)
 
     resend.api_key = os.environ["DB_STRATEGY_WEEKLY_RESEND_API_KEY"]
 
@@ -65,25 +91,33 @@ def main():
         to_recipients = approver if approver else [sender]
         bcc_recipients = remove_overlap(final_recipients, to_recipients)
 
-        resend.Emails.send({
+        params = {
             "from": sender,
             "to": to_recipients,
             "bcc": bcc_recipients,
             "subject": subject,
             "html": html
-        })
+        }
+        if inline_attachments:
+            params["attachments"] = inline_attachments
+
+        resend.Emails.send(params)
 
         print(f"Sent final article '{subject}'")
         print(f"To: {to_recipients}")
         print(f"BCC: {bcc_recipients}")
 
     elif approver:
-        resend.Emails.send({
+        params = {
             "from": sender,
             "to": approver,
             "subject": subject,
             "html": html
-        })
+        }
+        if inline_attachments:
+            params["attachments"] = inline_attachments
+
+        resend.Emails.send(params)
 
         print(f"Sent draft approval '{subject}' to approver only")
 
@@ -95,3 +129,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
