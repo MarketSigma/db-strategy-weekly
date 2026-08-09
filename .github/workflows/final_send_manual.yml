@@ -62,7 +62,10 @@ jobs:
           DB_STRATEGY_WEEKLY_APPROVER_EMAIL: ${{ secrets.DB_STRATEGY_WEEKLY_APPROVER_EMAIL }}
           DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO: ${{ secrets.DB_STRATEGY_WEEKLY_FINAL_EMAIL_TO }}
           DB_STRATEGY_WEEKLY_EMAIL_SUBJECT: DB Weekly Opportunities & Risks
+          DB_LOGO_URL: ${{ secrets.DB_LOGO_URL }}
         run: |
           python send_email.py strategy_weekly_final.html
+
+    
 
     
