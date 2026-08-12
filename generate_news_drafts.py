@@ -162,31 +162,44 @@ COMPETITOR_NEWSROOMS = [
 
 
 THEMATIC_INTELLIGENCE_SEARCHES = [
-    {
-        "category": "New Solution / Capability",
-        "query": '(Qatar OR GCC OR Saudi OR UAE) banking (payments OR "open banking" OR fintech OR blockchain OR AI OR "cash management" OR treasury OR "transaction banking" OR digital) (launch OR partnership OR platform OR solution OR capability)',
-        "priority": 190,
-    },
-    {
-        "category": "New Market / Client Pool",
-        "query": 'Qatar (investment OR expansion OR "new market" OR "new sector" OR logistics OR healthcare OR tourism OR manufacturing OR "data center" OR "data centre" OR cloud OR AI OR fintech OR wealth OR "financial services")',
-        "priority": 185,
-    },
-    {
-        "category": "Major Client / Deal Opportunity",
-        "query": 'Qatar (project OR contract OR expansion OR acquisition OR investment OR financing OR facility OR infrastructure OR "joint venture" OR "new plant" OR "new office" OR "new headquarters")',
-        "priority": 195,
-    },
-    {
-        "category": "Strategic Threat / Disruption",
-        "query": '(Qatar OR GCC) banking (challenger OR neobank OR fintech OR disruption OR "market entry" OR "new entrant" OR payments OR stablecoin OR blockchain OR "open banking" OR digital bank)',
-        "priority": 180,
-    },
-    {
-        "category": "White-Space Opportunity",
-        "query": '(Qatar OR GCC) ("unmet need" OR "new ecosystem" OR embedded finance OR "open finance" OR "instant payments" OR B2B payments OR SME fintech OR wealthtech OR insuretech OR "supply chain finance" OR "trade platform")',
-        "priority": 175,
-    },
+    # New solutions / capabilities
+    {"category": "New Solution / Capability", "query": 'Qatar bank payments launch', "priority": 210},
+    {"category": "New Solution / Capability", "query": 'Qatar bank fintech partnership', "priority": 210},
+    {"category": "New Solution / Capability", "query": 'Qatar open banking launch', "priority": 215},
+    {"category": "New Solution / Capability", "query": 'Qatar transaction banking cash management', "priority": 215},
+    {"category": "New Solution / Capability", "query": 'Qatar bank AI digital platform', "priority": 205},
+    {"category": "New Solution / Capability", "query": 'GCC bank new payments platform', "priority": 190},
+    {"category": "New Solution / Capability", "query": 'Saudi UAE bank fintech launch', "priority": 180},
+
+    # New markets / client pools
+    {"category": "New Market / Client Pool", "query": 'Qatar new investment sector expansion', "priority": 205},
+    {"category": "New Market / Client Pool", "query": 'Qatar data center investment', "priority": 215},
+    {"category": "New Market / Client Pool", "query": 'Qatar logistics investment expansion', "priority": 205},
+    {"category": "New Market / Client Pool", "query": 'Qatar healthcare investment expansion', "priority": 195},
+    {"category": "New Market / Client Pool", "query": 'Qatar manufacturing investment new plant', "priority": 205},
+    {"category": "New Market / Client Pool", "query": 'Qatar tourism investment project', "priority": 190},
+    {"category": "New Market / Client Pool", "query": 'Qatar Financial Centre new firms expansion', "priority": 205},
+
+    # Named deal / client opportunities
+    {"category": "Major Client / Deal Opportunity", "query": 'Qatar company signs contract investment project', "priority": 220},
+    {"category": "Major Client / Deal Opportunity", "query": 'QatarEnergy contract awarded project', "priority": 225},
+    {"category": "Major Client / Deal Opportunity", "query": 'Qatar infrastructure contract awarded', "priority": 215},
+    {"category": "Major Client / Deal Opportunity", "query": 'Qatar company expansion financing', "priority": 210},
+    {"category": "Major Client / Deal Opportunity", "query": 'Qatar acquisition investment joint venture', "priority": 210},
+    {"category": "Major Client / Deal Opportunity", "query": 'Qatar new plant project investment', "priority": 215},
+
+    # Threat / disruption
+    {"category": "Strategic Threat / Disruption", "query": 'Qatar digital bank fintech new entrant', "priority": 205},
+    {"category": "Strategic Threat / Disruption", "query": 'Qatar payments fintech launch bank competition', "priority": 205},
+    {"category": "Strategic Threat / Disruption", "query": 'GCC digital bank enters market', "priority": 185},
+    {"category": "Strategic Threat / Disruption", "query": 'GCC stablecoin bank payments launch', "priority": 185},
+
+    # White-space
+    {"category": "White-Space Opportunity", "query": 'Qatar embedded finance fintech', "priority": 195},
+    {"category": "White-Space Opportunity", "query": 'Qatar SME fintech platform', "priority": 195},
+    {"category": "White-Space Opportunity", "query": 'Qatar supply chain finance platform', "priority": 205},
+    {"category": "White-Space Opportunity", "query": 'Qatar B2B payments platform', "priority": 205},
+    {"category": "White-Space Opportunity", "query": 'GCC open finance embedded finance', "priority": 180},
 ]
 
 THEME_SIGNAL_TERMS = {
@@ -245,51 +258,76 @@ def theme_signal_score(category, title, summary):
     return score
 
 
-def fetch_thematic_intelligence(max_per_theme=25):
+def fetch_thematic_intelligence(max_per_search=12):
     """
-    Search-based discovery for the five non-competitor intelligence categories.
+    Run several simple Google News RSS searches per strategic theme.
 
-    This prevents the pipeline from relying on a narrow RSS universe and then
-    filling the remaining slots with fallbacks.
+    Simple searches are deliberately used instead of one long Boolean query:
+    Google News RSS handles them much more reliably.
     """
     items = []
     seen = set()
 
     for cfg in THEMATIC_INTELLIGENCE_SEARCHES:
         category = cfg["category"]
-        url = google_news_rss_url(cfg["query"], days=21)
+        url = google_news_rss_url(cfg["query"], days=30)
         base_priority = int(cfg["priority"])
 
         try:
             feed = feedparser.parse(url)
 
-            for entry in feed.entries[:max_per_theme]:
-                title = clean_text(entry.get("title", ""))
+            if getattr(feed, "bozo", False):
+                print(f"WARNING: Google News feed issue for '{cfg['query']}': {getattr(feed, 'bozo_exception', '')}")
+
+            for entry in feed.entries[:max_per_search]:
+                raw_title = clean_text(entry.get("title", ""))
                 summary = clean_text(entry.get("summary", ""))
                 link = clean_text(entry.get("link", ""))
 
-                if not title or not link:
+                if not raw_title or not link:
                     continue
-
-                key = dedupe_key(link, title)
-                if key in seen:
-                    continue
-
-                signal = theme_signal_score(category, title, summary)
-                if signal < 20:
-                    continue
-
-                seen.add(key)
 
                 source_name = "Google News"
                 source_obj = entry.get("source")
                 if isinstance(source_obj, dict):
                     source_name = clean_text(source_obj.get("title", "")) or source_name
 
-                published_raw = entry.get("published", "") or entry.get("updated", "")
+                title = clean_google_news_title(raw_title, source_name)
+
+                key = dedupe_key(link, title)
+                if key in seen:
+                    continue
 
                 combined = f"{title} {summary}".lower()
-                geography = "Qatar" if ("qatar" in combined or "doha" in combined) else "GCC"
+
+                # Require Qatar/GCC relevance, but do not require the exact word
+                # "Qatar" if the item is clearly from a GCC market.
+                regional = (
+                    "qatar" in combined
+                    or "doha" in combined
+                    or any(x in combined for x in [
+                        "gcc", "saudi", "riyadh", "uae", "dubai", "abu dhabi",
+                        "kuwait", "bahrain", "oman", "muscat"
+                    ])
+                )
+                if not regional:
+                    continue
+
+                signal = theme_signal_score(category, title, summary)
+
+                # Lower threshold: the AI will perform the second-stage strategic
+                # test. The fetch layer should discover, not over-filter.
+                if signal < 5:
+                    continue
+
+                seen.add(key)
+                published_raw = entry.get("published", "") or entry.get("updated", "")
+
+                geography = (
+                    "Qatar"
+                    if ("qatar" in combined or "doha" in combined)
+                    else "GCC"
+                )
 
                 items.append({
                     "title": title,
@@ -304,7 +342,7 @@ def fetch_thematic_intelligence(max_per_theme=25):
                 })
 
         except Exception as e:
-            print(f"WARNING: Thematic search failed for {category}. Error: {e}")
+            print(f"WARNING: Thematic search failed for '{cfg['query']}'. Error: {e}")
 
     items.sort(key=lambda x: x.get("_priority_score", 0), reverse=True)
     return items
@@ -349,6 +387,27 @@ COMPETITOR_SEARCHES = [
 ]
 
 
+
+def clean_google_news_title(title, source_name=""):
+    """
+    Google News RSS titles often end with " - Publisher".
+    Remove that publisher suffix so the email displays only the real headline.
+    """
+    title = clean_text(title)
+    source_name = clean_text(source_name)
+
+    if source_name:
+        patterns = [
+            rf"\s+-\s+{re.escape(source_name)}\s*$",
+            rf"\s+–\s+{re.escape(source_name)}\s*$",
+            rf"\s+—\s+{re.escape(source_name)}\s*$",
+        ]
+        for pattern in patterns:
+            title = re.sub(pattern, "", title, flags=re.I).strip()
+
+    return title
+
+
 def google_news_rss_url(query, days=14):
     q = f"{query} when:{days}d"
     return (
@@ -377,7 +436,7 @@ def fetch_competitor_search_news(max_per_bank=15):
             feed = feedparser.parse(url)
 
             for entry in feed.entries[:max_per_bank]:
-                title = clean_text(entry.get("title", ""))
+                raw_title = clean_text(entry.get("title", ""))
                 summary = clean_text(entry.get("summary", ""))
                 link = clean_text(entry.get("link", ""))
 
@@ -417,6 +476,7 @@ def fetch_competitor_search_news(max_per_bank=15):
                 if isinstance(source_obj, dict):
                     source_name = clean_text(source_obj.get("title", "")) or source_name
 
+                title = clean_google_news_title(raw_title, source_name)
                 published_raw = entry.get("published", "") or entry.get("updated", "")
 
                 items.append({
@@ -795,6 +855,80 @@ def dedupe_key(link, title):
     return clean_text(title).lower()
 
 
+BROAD_STRATEGIC_SEARCHES = [
+    "Qatar banking partnership launch",
+    "Qatar fintech payments",
+    "Qatar company expansion investment",
+    "Qatar project contract awarded",
+    "QatarEnergy project contract",
+    "Qatar new business investment",
+    "Qatar corporate financing",
+    "Qatar technology investment",
+    "GCC bank fintech partnership",
+    "GCC payments banking launch",
+]
+
+
+def fetch_broad_strategic_news(max_per_search=12):
+    items = []
+    seen = set()
+
+    for query in BROAD_STRATEGIC_SEARCHES:
+        try:
+            feed = feedparser.parse(google_news_rss_url(query, days=30))
+
+            for entry in feed.entries[:max_per_search]:
+                raw_title = clean_text(entry.get("title", ""))
+                summary = clean_text(entry.get("summary", ""))
+                link = clean_text(entry.get("link", ""))
+
+                if not raw_title or not link:
+                    continue
+
+                source_name = "Google News"
+                source_obj = entry.get("source")
+                if isinstance(source_obj, dict):
+                    source_name = clean_text(source_obj.get("title", "")) or source_name
+
+                title = clean_google_news_title(raw_title, source_name)
+                key = dedupe_key(link, title)
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                combined = f"{title} {summary}".lower()
+                if not (
+                    "qatar" in combined
+                    or "doha" in combined
+                    or any(x in combined for x in ["gcc", "saudi", "uae", "kuwait", "bahrain", "oman"])
+                ):
+                    continue
+
+                if any(term in combined for term in BLOCKED_TERMS):
+                    continue
+
+                published_raw = entry.get("published", "") or entry.get("updated", "")
+                geography = "Qatar" if ("qatar" in combined or "doha" in combined) else "GCC"
+
+                items.append({
+                    "title": title,
+                    "summary": summary[:1200],
+                    "link": link,
+                    "source": source_name,
+                    "source_date": format_source_date(published_raw),
+                    "geography": geography,
+                    "source_type": "broad_strategic_search",
+                    "_priority_score": 150 + (35 if geography == "Qatar" else 20),
+                })
+
+        except Exception as e:
+            print(f"WARNING: Broad strategic search failed for '{query}'. Error: {e}")
+
+    items.sort(key=lambda x: x.get("_priority_score", 0), reverse=True)
+    return items
+
+
+
 def fetch_news(max_items=140, sources_path="news_sources.json"):
     items = []
     seen = set()
@@ -857,7 +991,21 @@ def fetch_news(max_items=140, sources_path="news_sources.json"):
         seen.add(key)
         items.append(item)
 
-    # 3) Broader Qatar/GCC/global RSS coverage.
+    # 3) Broad strategic discovery backstop.
+    broad_items = fetch_broad_strategic_news()
+    print(f"Broad strategic search found {len(broad_items)} candidates.")
+
+    for bi in broad_items[:20]:
+        print(f"BROAD CANDIDATE | {bi.get('geography', '')} | {bi.get('title', '')}")
+
+    for item in broad_items:
+        key = dedupe_key(item.get("link"), item.get("title"))
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(item)
+
+    # 4) Broader Qatar/GCC/global RSS coverage.
     sources = load_news_sources(sources_path)
 
     for source_cfg in sources:
@@ -1364,179 +1512,253 @@ def validate_topics(topics):
 
 
 def ai_select_topics(news_items, bank_name):
-    if len(news_items) < 6:
-        print("WARNING: Not enough relevant intelligence items. Using selective fallback topics.")
-        return fallback_topics(news_items)
+    if not news_items:
+        raise ValueError("No real news/intelligence items were discovered. Refusing to manufacture fallback articles.")
 
     prompt = f"""
 You are the competitive-intelligence analyst for the Chief Strategy Officer of {bank_name}.
 
-Your job is NOT to produce a broad news digest.
-Your job is to uncover developments that could change where Doha Bank competes, what it sells, who it sells to, how it wins, or where new revenue pools are forming.
+This is NOT a general news digest.
+Select exactly 6 REAL, current developments from the supplied candidate intelligence.
 
-Select exactly 6 items, one for each category below:
-{json.dumps(CATEGORY_RULES, ensure_ascii=False, indent=2)}
+The six items do NOT need to fit six rigid slots.
+Use whichever categories genuinely describe the strongest developments:
+- Competitor Move
+- New Solution / Capability
+- New Market / Client Pool
+- Major Client / Deal Opportunity
+- Strategic Threat / Disruption
+- White-Space Opportunity
 
-HARD FILTER — reject an item unless at least one is true:
-1. A named Qatar/GCC competitor is launching, partnering, entering, acquiring, pricing, financing, digitising or changing a proposition.
-2. A new banking/fintech/payment/AI/treasury/cash-management/trade-finance/open-banking/blockchain capability is becoming commercially relevant.
-3. A specific new Qatar/GCC market, sector, project pipeline, geography or client segment is creating an identifiable banking revenue pool.
-4. A named major company, government entity, investor or project is creating a plausible lending, deposit, payments, treasury, advisory, trade-finance or fee opportunity.
-5. A structural threat could take clients, deposits, payments flows, fee pools or strategic relevance away from Doha Bank.
-6. There is evidence of a white-space opportunity that Doha Bank could credibly enter with a proposition, partnership or market move.
+Selection rules:
+- Prefer Qatar first, GCC second.
+- Aim for at least 4 Qatar-specific items if enough credible Qatar candidates exist.
+- Prefer named companies, named banks, named projects, named products and named partnerships.
+- A direct competitor move, new banking solution, corporate expansion, awarded project,
+  market entry, financing need or new client pool should outrank broad macro commentary.
+- Do not select generic GDP, inflation, Fed, oil-price or market-outlook stories unless
+  they create a concrete revenue pool, named opportunity or structural threat for Doha Bank.
+- Do not create fallback topics.
+- Do not write "no sufficiently material..." or "no new solution...".
+- If two strong items belong to the same category, that is acceptable.
+- Avoid duplicates or multiple articles about the same underlying development.
+- Every selected item must have a real source_url from the candidates.
 
-REJECT:
-- generic GDP, inflation, oil-price, Fed, ECB, IMF or global-market stories unless they directly create one of the six outcomes above;
-- generic "GCC growth", "Qatar economy remains strong", "rates may fall", "oil rises", or "AI is changing banking";
-- awards, CSR, sponsorships, routine earnings, ceremonial MoUs with no commercial capability, and marketing campaigns;
-- stories whose Doha Bank implication is merely "monitor", "remain vigilant", "support growth", or "assess impact";
-- old themes with no new action, entrant, product, customer segment, project or competitive move.
+For each selected item, answer:
+- what_is_new: the specific new development
+- named_rival_or_actor: the named bank/company/government entity/fintech/project sponsor
+- target_client_or_market: who the commercial opportunity/threat affects
+- revenue_pool: the plausible banking wallet (lending, deposits, payments, treasury,
+  trade finance, cash management, wealth, advisory, cards, fees, etc.)
+- recommended_strategy_test: one concrete test Strategy can run
 
-GEOGRAPHIC PRIORITY:
-- Qatar first.
-- GCC second.
-- Global only if it introduces a capability/business model likely to reach Qatar/GCC soon.
-- Aim for at least 5 of 6 items to be Qatar/GCC-specific when the evidence supports it.
-
-COMPETITOR PRIORITY:
-- Direct Qatar competitor announcements are extremely important.
-- Give particular weight to QNB, QIB, Dukhan Bank, Commercial Bank, Masraf Al Rayan, Ahlibank Qatar and QIIB.
-- Also surface GCC banks/fintechs entering propositions that could be replicated in Qatar.
-- A primary-source bank announcement is valid intelligence even if newspapers have not covered it.
-
-FOR EACH SELECTED ITEM, infer a sharp commercial thesis.
-It must answer:
-- What is actually new?
-- Who is moving?
-- What client need/revenue pool is involved?
-- Why does this matter now?
-- What could Doha Bank lose or win?
-- What concrete move should Strategy test?
-
-SCORING:
-Score every candidate internally from 0–5 on:
-- Novelty
-- Competitive intensity
-- Revenue-pool potential
-- Actionability
+Score each item internally 0-5 on:
+- novelty
+- competitive intensity
+- revenue-pool potential
+- actionability
 - Qatar/GCC relevance
 
-Only select items with a total score of at least 15/25.
-If a category has no qualifying item, use a "No sufficiently material ... identified this cycle" fallback rather than filling space with weak news.
+Choose the 6 strongest overall. Do not impose a minimum score that causes empty slots;
+rank the real candidates and take the best six.
 
-Return only a valid JSON array. No markdown. No explanation.
+Return only a valid JSON array of exactly 6 objects. No markdown.
 
-Required structure:
-[
-  {{
-    "topic_id": "1",
-    "category": "Competitor Move",
-    "title": "...",
-    "source_title": "...",
-    "source_name": "...",
-    "source_url": "...",
-    "source_date": "...",
-    "source_excerpt": "...",
-    "why_it_matters": "...",
-    "potential_doha_bank_angle": "...",
-    "what_is_new": "...",
-    "named_rival_or_actor": "...",
-    "target_client_or_market": "...",
-    "revenue_pool": "...",
-    "recommended_strategy_test": "...",
-    "novelty_score": 0,
-    "competitive_intensity_score": 0,
-    "revenue_pool_score": 0,
-    "actionability_score": 0,
-    "qatar_gcc_relevance_score": 0
-  }}
-]
+Required object structure:
+{{
+  "topic_id": "1",
+  "category": "Competitor Move",
+  "title": "...",
+  "source_title": "...",
+  "source_name": "...",
+  "source_url": "...",
+  "source_date": "...",
+  "source_excerpt": "...",
+  "why_it_matters": "...",
+  "potential_doha_bank_angle": "...",
+  "what_is_new": "...",
+  "named_rival_or_actor": "...",
+  "target_client_or_market": "...",
+  "revenue_pool": "...",
+  "recommended_strategy_test": "...",
+  "novelty_score": 0,
+  "competitive_intensity_score": 0,
+  "revenue_pool_score": 0,
+  "actionability_score": 0,
+  "qatar_gcc_relevance_score": 0
+}}
 
-Use the exact same object structure for topic_ids 2 through 6 with their mandatory categories.
-
-Important source rules:
-- Preserve source_name, source_url and source_date from the selected item.
-- source_excerpt must come from the supplied source text; do not invent it.
-- Do not fabricate a competitor, product, market, project or client.
-- Do not turn a weak article into a strategic insight just to fill a category.
+Source integrity:
+- Preserve source_name, source_url and source_date from the chosen candidate.
+- source_title must be the clean article headline, without publisher suffix.
+- source_excerpt must use supplied source text; do not invent factual details.
+- Never fabricate a bank, company, project, client, product or transaction.
 
 Candidate intelligence:
 {json.dumps(news_items, ensure_ascii=False)}
 """
 
     try:
-        text = ask_claude(prompt)
-        topics = extract_json_array(text)
+        raw = ask_claude(prompt)
+        topics = extract_json_array(raw)
 
-        # Keep only items that meet the score threshold or explicit "no material item" fallbacks.
-        filtered = []
-        expected = {rule["topic_id"]: rule["category"] for rule in CATEGORY_RULES}
+        valid = []
+        used_urls = set()
 
-        for idx, t in enumerate(topics[:6], 1):
-            t["topic_id"] = str(idx)
-            t["category"] = expected[str(idx)]
+        for t in topics:
+            if len(valid) >= 6:
+                break
 
-            title = str(t.get("title", ""))
-            is_fallback = title.lower().startswith("no sufficiently") or title.lower().startswith("no material")
+            url = clean_text(t.get("source_url", ""))
+            title = clean_text(t.get("title", ""))
+            source_title = clean_text(t.get("source_title", "")) or title
 
-            scores = [
-                t.get("novelty_score", 0),
-                t.get("competitive_intensity_score", 0),
-                t.get("revenue_pool_score", 0),
-                t.get("actionability_score", 0),
-                t.get("qatar_gcc_relevance_score", 0),
-            ]
+            if not url or url == "#":
+                continue
+            if title.lower().startswith("no sufficiently") or title.lower().startswith("no new"):
+                continue
 
-            try:
-                total_score = sum(float(x or 0) for x in scores)
-            except Exception:
-                total_score = 0
+            url_key = url.split("?")[0].rstrip("/").lower()
+            if url_key in used_urls:
+                continue
+            used_urls.add(url_key)
 
-            if is_fallback or total_score >= 15:
-                t.setdefault("source_date", TODAY)
-                t["source_excerpt"] = article_excerpt(
-                    t.get("source_excerpt")
-                    or t.get("source_title")
-                    or t.get("title")
-                )
-                filtered.append(t)
+            t["topic_id"] = str(len(valid) + 1)
+            t["source_title"] = source_title
+            t["source_excerpt"] = article_excerpt(
+                t.get("source_excerpt") or t.get("source_title") or t.get("title")
+            )
+            valid.append(t)
 
-        # Fill only missing category slots with transparent fallbacks.
-        fallback = fallback_topics(news_items)
-        by_id = {str(t.get("topic_id")): t for t in filtered}
+        # If Claude returns fewer than six usable items, fill the remaining slots
+        # with the highest-ranked REAL candidates from discovery. Never use synthetic fallbacks.
+        if len(valid) < 6:
+            candidate_pool = sorted(
+                news_items,
+                key=lambda x: (
+                    1 if x.get("geography") == "Qatar" else 0,
+                    1 if x.get("source_type") in (
+                        "official_competitor_announcement",
+                        "competitor_search_result",
+                        "thematic_search_result",
+                    ) else 0,
+                ),
+                reverse=True,
+            )
 
-        # Deterministic safeguards for ALL six categories:
-        # when the discovery layer has a real high-signal candidate, do not allow
-        # a generic fallback simply because Claude omitted or under-scored it.
-        forced_topics = deterministic_category_topics(news_items)
+            for item in candidate_pool:
+                if len(valid) >= 6:
+                    break
 
-        for tid, forced_topic in forced_topics.items():
-            ai_topic = by_id.get(tid)
+                url = clean_text(item.get("link", ""))
+                if not url:
+                    continue
 
-            # Preserve Claude's richer interpretation only when it selected the
-            # exact same underlying source.
-            if (
-                ai_topic
-                and clean_text(ai_topic.get("source_url", "")).rstrip("/")
-                == clean_text(forced_topic.get("source_url", "")).rstrip("/")
-            ):
-                forced_topic.update({
-                    k: v for k, v in ai_topic.items()
-                    if v not in ("", None, [])
+                url_key = url.split("?")[0].rstrip("/").lower()
+                if url_key in used_urls:
+                    continue
+
+                used_urls.add(url_key)
+
+                category = clean_text(item.get("intelligence_category", ""))
+                if not category:
+                    category = "Competitor Move" if item.get("competitor_bank") else "New Market / Client Pool"
+
+                valid.append({
+                    "topic_id": str(len(valid) + 1),
+                    "category": category,
+                    "title": clean_text(item.get("title", "")),
+                    "source_title": clean_text(item.get("title", "")),
+                    "source_name": clean_text(item.get("source", "News source")),
+                    "source_url": url,
+                    "source_date": clean_text(item.get("source_date", "")) or TODAY,
+                    "source_excerpt": article_excerpt(item.get("summary", "")),
+                    "why_it_matters": "This is one of the strongest current Qatar/GCC strategic developments identified by the discovery layer.",
+                    "potential_doha_bank_angle": "Assess the specific client, product, funding or competitive implication for Doha Bank.",
+                    "what_is_new": clean_text(item.get("title", "")),
+                    "named_rival_or_actor": clean_text(item.get("competitor_bank", "")),
+                    "target_client_or_market": "Relevant Qatar/GCC clients and revenue pools",
+                    "revenue_pool": "To be assessed in the full article from the development's commercial implications.",
+                    "recommended_strategy_test": "Validate the opportunity or threat with the relevant business owner and target clients.",
+                    "novelty_score": 3,
+                    "competitive_intensity_score": 3,
+                    "revenue_pool_score": 3,
+                    "actionability_score": 3,
+                    "qatar_gcc_relevance_score": 4 if item.get("geography") == "Qatar" else 3,
                 })
 
-            by_id[tid] = forced_topic
+        if len(valid) < 6:
+            raise ValueError(
+                f"Only {len(valid)} real strategic items were found. "
+                "Check Google News/network access in the GitHub workflow logs."
+            )
 
-        final = []
-        for fb in fallback:
-            tid = str(fb["topic_id"])
-            final.append(by_id.get(tid, fb))
-
-        return final[:6]
+        return valid[:6]
 
     except Exception as e:
-        print(f"WARNING: Competitive-intelligence selection failed. Using selective fallback topics. Error: {e}")
-        return fallback_topics(news_items)
+        print(f"WARNING: AI selection failed; using top real discovered items. Error: {e}")
+
+        # Real-story-only deterministic backup.
+        backup = []
+        used = set()
+
+        ranked = sorted(
+            news_items,
+            key=lambda x: (
+                1 if x.get("geography") == "Qatar" else 0,
+                1 if x.get("source_type") in (
+                    "official_competitor_announcement",
+                    "competitor_search_result",
+                    "thematic_search_result",
+                ) else 0,
+            ),
+            reverse=True,
+        )
+
+        for item in ranked:
+            if len(backup) >= 6:
+                break
+
+            url = clean_text(item.get("link", ""))
+            key = url.split("?")[0].rstrip("/").lower()
+            if not url or key in used:
+                continue
+            used.add(key)
+
+            category = clean_text(item.get("intelligence_category", ""))
+            if not category:
+                category = "Competitor Move" if item.get("competitor_bank") else "New Market / Client Pool"
+
+            backup.append({
+                "topic_id": str(len(backup) + 1),
+                "category": category,
+                "title": clean_text(item.get("title", "")),
+                "source_title": clean_text(item.get("title", "")),
+                "source_name": clean_text(item.get("source", "News source")),
+                "source_url": url,
+                "source_date": clean_text(item.get("source_date", "")) or TODAY,
+                "source_excerpt": article_excerpt(item.get("summary", "")),
+                "why_it_matters": "Selected from the strongest real Qatar/GCC developments discovered this cycle.",
+                "potential_doha_bank_angle": "Assess the direct commercial and competitive implication for Doha Bank.",
+                "what_is_new": clean_text(item.get("title", "")),
+                "named_rival_or_actor": clean_text(item.get("competitor_bank", "")),
+                "target_client_or_market": "Relevant Qatar/GCC clients",
+                "revenue_pool": "Potential lending, deposits, payments, treasury, trade-finance or fee opportunity depending on the development.",
+                "recommended_strategy_test": "Validate relevance with the responsible business unit and target clients.",
+                "novelty_score": 3,
+                "competitive_intensity_score": 3,
+                "revenue_pool_score": 3,
+                "actionability_score": 3,
+                "qatar_gcc_relevance_score": 4 if item.get("geography") == "Qatar" else 3,
+            })
+
+        if len(backup) < 6:
+            raise ValueError(
+                f"Only {len(backup)} real items available after discovery. "
+                "No synthetic fallback articles were generated."
+            )
+
+        return backup
 
 
 def strip_outer_html(full_html):
