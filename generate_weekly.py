@@ -361,14 +361,6 @@ Use this EXACT JSON structure:
   ]
 }}
 
-Geographic priority:
-- This briefing is for Doha Bank in Qatar.
-- Anchor the analysis in Qatar first and the GCC second.
-- For Qatar/GCC topics, explicitly connect the development to Qatar banking conditions, corporate activity, liquidity, credit demand, trade, investment, government spending, energy/LNG, real estate, infrastructure, regulation, or client activity where relevant.
-- For a global topic, explain the direct transmission channel into Qatar or the GCC before discussing Doha Bank.
-- Avoid generic US/Europe/global commentary unless it materially changes the implications for Doha Bank.
-- Recommendations should be practical for Doha Bank's Qatar/GCC operating context.
-
 Global rules:
 - Do NOT invent financial numbers.
 - Only use Doha Bank figures present in the Supabase data below.
@@ -528,9 +520,19 @@ def build_final_email(topic, article):
     source_url = html.escape(topic.get("source_url", "#"))
     source_date = html.escape(str(topic.get("source_date", "")).strip())
 
-    source_meta = source_name
+    # Keep publisher and date in separate bidi-isolated spans.
+    # This prevents Arabic publisher names from visually reordering dates
+    # (e.g. "5 · Arabic-source August 2026").
+    source_meta_parts = []
+    if source_name:
+        source_meta_parts.append(
+            f'<span dir="auto" style="unicode-bidi:isolate;">{source_name}</span>'
+        )
     if source_date:
-        source_meta += f' &nbsp;&middot;&nbsp; {source_date}'
+        source_meta_parts.append(
+            f'<span dir="ltr" style="unicode-bidi:isolate; white-space:nowrap;">{source_date}</span>'
+        )
+    source_meta = ' <span dir="ltr" style="unicode-bidi:isolate;">&middot;</span> '.join(source_meta_parts)
 
     source_summary_raw = remove_raw_metric_codes_from_text(str(article.get("source_summary", "")).strip())
     if source_summary_raw and not source_summary_raw.endswith(("…", "...")):
@@ -581,11 +583,9 @@ def build_final_email(topic, article):
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td valign="middle">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td>
-              <img src="{LOGO_URL}" width="180" alt="Doha Bank" style="display:block; border:0; outline:none; text-decoration:none; width:180px; height:auto;">
-            </td>
-          </tr>
+          <tr><td>
+            <img src="{LOGO_URL}" width="180" alt="Doha Bank" style="display:block; width:180px; height:auto; border:0; outline:none; text-decoration:none;">
+          </td></tr>
         </table>
       </td>
       <td class="masthead-date" align="right" valign="middle" style="font-family:Arial,sans-serif; font-size:11px; letter-spacing:1.6px; text-transform:uppercase; color:{MUTED}; white-space:nowrap;">{TODAY}</td>
@@ -606,7 +606,7 @@ def build_final_email(topic, article):
       <td width="3" style="background-color:{GOLD}; font-size:0; line-height:0;">&nbsp;</td>
       <td style="padding:20px 24px;">
         <p class="source-title" style="margin:0 0 8px 0; font-family:Georgia,serif; font-size:18px; font-weight:bold; line-height:1.35; color:{NAVY};">{source_title}</p>
-        <p style="margin:0 0 12px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.3px; color:{MUTED};">{source_meta}</p>
+        <p dir="ltr" style="margin:0 0 12px 0; font-family:Arial,sans-serif; font-size:12px; letter-spacing:0.3px; color:{MUTED};">{source_meta}</p>
         <p class="source-summary" style="margin:0 0 16px 0; font-family:Arial,sans-serif; font-size:15px; line-height:1.65; color:{SLATE};">{source_summary}</p>
         <div style="border-top:1px solid {LINE}; padding-top:12px; text-align:right;">
           <a href="{source_url}" style="font-family:Arial,sans-serif; font-size:11px; font-weight:bold; letter-spacing:1.4px; text-transform:uppercase; color:{NAVY}; text-decoration:none;">Read the source &rarr;</a>
