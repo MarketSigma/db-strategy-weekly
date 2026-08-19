@@ -510,7 +510,7 @@ def fetch_google_news():
 
                 item = {
                     "title": title,
-                    "summary": summary[:1200],
+                    "summary": summary[:320],
                     "link": link,
                     "source": source_name,
                     "source_date": format_source_date(
@@ -573,7 +573,7 @@ def fetch_standard_rss():
 
                 item = {
                     "title": title,
-                    "summary": summary[:1200],
+                    "summary": summary[:320],
                     "link": link,
                     "source": source_name,
                     "source_date": format_source_date(
@@ -603,7 +603,7 @@ def fetch_standard_rss():
 # 6. MERGE / DEDUPE / RANK
 # ---------------------------------------------------------------------
 
-def fetch_news(max_items=80):
+def fetch_news(max_items=50):
     combined = fetch_google_news() + fetch_standard_rss()
 
     seen = set()
@@ -654,7 +654,7 @@ def fetch_news(max_items=80):
 # 7. CLAUDE TOPIC SELECTION
 # ---------------------------------------------------------------------
 
-def ask_claude(prompt, max_tokens=12000):
+def ask_claude(prompt, max_tokens=7000):
     response = client.messages.create(
         model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         max_tokens=max_tokens,
@@ -712,14 +712,14 @@ def ai_select_topics(news_items, bank_name):
     gcc_non_competitor = [x for x in gcc_items if x.get("theme") != "competitor"]
     gcc_competitor = [x for x in gcc_items if x.get("theme") == "competitor"]
 
+    # Keep the Claude payload compact to avoid truncated JSON responses.
     selection_pool = (
-        qatar_deals[:10]
-        + qatar_solutions[:8]
-        + qatar_markets[:8]
-        + qatar_competitors[:6]
-        + qatar_other[:4]
-        + gcc_non_competitor[:8]
-        + gcc_competitor[:4]
+        qatar_deals[:8]
+        + qatar_solutions[:5]
+        + qatar_markets[:4]
+        + qatar_competitors[:3]
+        + gcc_non_competitor[:3]
+        + gcc_competitor[:2]
     )
 
     pool_seen = set()
@@ -732,8 +732,11 @@ def ai_select_topics(news_items, bank_name):
         diversified.append(item)
     selection_pool = diversified
 
-    if len(selection_pool) < 24:
-        selection_pool += global_items[: max(0, 24 - len(selection_pool))]
+    # Global stories are a true last resort. Keep the total Claude pool <= 25.
+    if len(selection_pool) < 18:
+        selection_pool += global_items[: max(0, 18 - len(selection_pool))]
+
+    selection_pool = selection_pool[:25]
 
     print(
         "SELECTION POOL MIX | "
@@ -741,8 +744,22 @@ def ai_select_topics(news_items, bank_name):
         f"Qatar solutions={len(qatar_solutions)} | "
         f"Qatar markets={len(qatar_markets)} | "
         f"Qatar competitors={len(qatar_competitors)} | "
-        f"GCC={len(gcc_items)}"
+        f"GCC={len(gcc_items)} | "
+        f"Claude pool={len(selection_pool)}"
     )
+
+    compact_pool = []
+    for item in selection_pool:
+        compact_pool.append({
+            "title": clean_text(item.get("title", "")),
+            "summary": article_excerpt(item.get("summary", ""), 260),
+            "link": clean_text(item.get("link", "")),
+            "source": clean_text(item.get("source", "")),
+            "source_date": clean_text(item.get("source_date", "")),
+            "geography": clean_text(item.get("geography", "")),
+            "theme": clean_text(item.get("theme", "")),
+            "relevance_score": item.get("relevance_score", 0),
+        })
 
     prompt = f"""
 You are the competitive-intelligence analyst for the Chief Strategy Officer of {bank_name}.
@@ -841,11 +858,24 @@ No markdown.
 No explanation.
 
 Candidate intelligence:
-{json.dumps(selection_pool, ensure_ascii=False)}
+{json.dumps(compact_pool, ensure_ascii=False)}
 """
 
-    raw = ask_claude(prompt)
-    topics = extract_json_array(raw)
+    try:
+        raw = ask_claude(prompt)
+        topics = extract_json_array(raw)
+    except Exception as first_error:
+        print(f"WARNING: First Claude selection attempt failed: {first_error}")
+        print("Retrying Claude with a smaller top-15 candidate pool.")
+
+        retry_pool = compact_pool[:15]
+        retry_prompt = prompt.rsplit("Candidate intelligence:\n", 1)[0] + (
+            "Candidate intelligence:\n"
+            + json.dumps(retry_pool, ensure_ascii=False)
+        )
+
+        raw = ask_claude(retry_prompt, max_tokens=6000)
+        topics = extract_json_array(raw)
 
     valid = []
     used_urls = set()
