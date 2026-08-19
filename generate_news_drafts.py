@@ -839,6 +839,7 @@ Candidate intelligence:
         except Exception as retry_error:
             print(f"WARNING: Claude retry also failed: {retry_error}")
             print("Using deterministic selection from real discovered candidates; no synthetic fallbacks.")
+            print("NOTE: Candidate title/source metadata will be restored after URL matching.")
 
             topics = []
             used_backup_urls = set()
@@ -907,12 +908,10 @@ Candidate intelligence:
             break
 
         url = clean_text(t.get("source_url", ""))
-        title = clean_text(t.get("title", ""))
 
-        if not url or url == "#" or not title:
-            continue
-
-        if title.lower().startswith("no sufficiently") or title.lower().startswith("no new"):
+        # The compact Claude response intentionally does not include title.
+        # Title/source/date/excerpt are restored from the matched real candidate below.
+        if not url or url == "#":
             continue
 
         url_key = url.split("?")[0].rstrip("/").lower()
