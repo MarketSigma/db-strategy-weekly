@@ -661,11 +661,26 @@ def ask_claude(prompt, max_tokens=7000):
         messages=[{"role": "user", "content": prompt}],
     )
 
+    text_parts = []
     for block in response.content:
         if getattr(block, "type", None) == "text":
-            return block.text.strip()
+            value = getattr(block, "text", "")
+            if value:
+                text_parts.append(value)
 
-    raise ValueError("Claude returned no text block")
+    if text_parts:
+        return "\n".join(text_parts).strip()
+
+    stop_reason = getattr(response, "stop_reason", "")
+    content_types = [
+        getattr(block, "type", type(block).__name__)
+        for block in getattr(response, "content", [])
+    ]
+
+    raise ValueError(
+        f"Claude returned no usable text block. "
+        f"stop_reason={stop_reason!r}, content_types={content_types}"
+    )
 
 
 def extract_json_array(text):
@@ -764,78 +779,22 @@ def ai_select_topics(news_items, bank_name):
     prompt = f"""
 You are the competitive-intelligence analyst for the Chief Strategy Officer of {bank_name}.
 
-This is NOT a general news digest.
+Select exactly 6 REAL developments from the candidate list.
 
-Select exactly 6 REAL developments that are most strategically relevant to Doha Bank.
+Selection priorities:
+- Doha Bank relevance is mandatory.
+- Prefer Qatar first, GCC second.
+- Prefer stories from the last 7 days.
+- Maximum 2 competitor-focused stories.
+- Include at least 2 Qatar market/client/deal opportunities when credible candidates exist.
+- Include at least 1 solution/capability or white-space opportunity when credible candidates exist.
+- Reject generic macro commentary, awards, sponsorships, CSR and lifestyle stories.
+- Do not create fallback topics.
+- Do not invent sources, companies, projects or facts.
 
-CORE RULE:
-A story must have a direct transmission channel to Doha Bank through at least one of:
-- deposits
-- lending
-- fee income
-- payments
-- transaction banking
-- treasury
-- trade finance
-- cash management
-- project finance
-- wealth
-- funding
-- credit risk
-- customer acquisition
-- client retention
-- competitive positioning
-
-GEOGRAPHY AND FRESHNESS:
-- Prefer Qatar first.
-- Prefer GCC second.
-- Prefer stories from the last 7 days; use 8-14 day stories only when materially stronger.
-- Do NOT select a Qatar/GCC story just because it is local.
-- Relevance to Doha Bank is mandatory.
-- A global story may be selected only if its Doha Bank impact is clearly stronger than a regional alternative.
-
-PORTFOLIO MIX:
-- Select at most 2 competitor-focused stories.
-- Select at least 2 Qatar market/client/deal opportunities when credible candidates exist.
-- Select at least 1 new solution/capability or white-space opportunity when credible candidates exist.
-- The six topics should feel like a strategy opportunity set, not a competitor-monitoring newsletter.
-
-STRONGEST TYPES OF INTELLIGENCE:
-1. A named Qatar competitor launches or adopts a new capability.
-2. A Qatar/GCC bank or fintech launches a solution that could reshape customer expectations.
-3. A named Qatar corporate, government entity or project creates a financing/payments/treasury opportunity.
-4. A new Qatar/GCC market or client segment creates an identifiable revenue pool.
-5. A competitor or technology development threatens Doha Bank's existing revenue pools.
-6. A clear white-space opportunity emerges for Doha Bank.
-
-REJECT:
-- stories older than 14 days unless they represent an unusually material development that is still strategically active
-- generic GDP stories
-- generic inflation stories
-- Fed / ECB commentary
-- generic oil-price commentary
-- awards
-- sponsorships
-- CSR
-- routine marketing
-- tourism/lifestyle news without a banking wallet
-- broad "Qatar growth" stories with no named actor or commercial opportunity
-
-DO NOT CREATE FALLBACK TOPICS.
-Do not write "no sufficiently material..." or "no new solution...".
-
-Categories can repeat.
-The goal is the 6 strongest REAL strategic developments, not one item from each category.
-
-For each selected item return:
-- topic_id
-- category
-- title
-- source_title
-- source_name
+For each selected item return ONLY these fields:
 - source_url
-- source_date
-- source_excerpt
+- category
 - why_it_matters
 - potential_doha_bank_angle
 - what_is_new
@@ -853,29 +812,92 @@ Allowed categories:
 - Strategic Threat / Disruption
 - White-Space Opportunity
 
+Keep every text field concise: maximum 25 words.
 Return ONLY a valid JSON array of exactly 6 objects.
-No markdown.
-No explanation.
+No markdown. No explanation.
 
 Candidate intelligence:
 {json.dumps(compact_pool, ensure_ascii=False)}
 """
 
     try:
-        raw = ask_claude(prompt)
+        raw = ask_claude(prompt, max_tokens=5000)
         topics = extract_json_array(raw)
     except Exception as first_error:
         print(f"WARNING: First Claude selection attempt failed: {first_error}")
-        print("Retrying Claude with a smaller top-15 candidate pool.")
+        print("Retrying Claude with a smaller top-12 candidate pool.")
 
-        retry_pool = compact_pool[:15]
+        retry_pool = compact_pool[:12]
         retry_prompt = prompt.rsplit("Candidate intelligence:\n", 1)[0] + (
             "Candidate intelligence:\n"
             + json.dumps(retry_pool, ensure_ascii=False)
         )
 
-        raw = ask_claude(retry_prompt, max_tokens=6000)
-        topics = extract_json_array(raw)
+        try:
+            raw = ask_claude(retry_prompt, max_tokens=4500)
+            topics = extract_json_array(raw)
+        except Exception as retry_error:
+            print(f"WARNING: Claude retry also failed: {retry_error}")
+            print("Using deterministic selection from real discovered candidates; no synthetic fallbacks.")
+
+            topics = []
+            used_backup_urls = set()
+
+            # Preserve the intended mix as much as possible.
+            backup_buckets = [
+                qatar_deals[:3],
+                qatar_solutions[:2],
+                qatar_markets[:2],
+                qatar_competitors[:2],
+                gcc_non_competitor[:2],
+                gcc_competitor[:1],
+                qatar_other[:2],
+            ]
+
+            for bucket in backup_buckets:
+                for item in bucket:
+                    if len(topics) >= 6:
+                        break
+
+                    url = clean_text(item.get("link", ""))
+                    key = url.split("?")[0].rstrip("/").lower()
+                    if not url or key in used_backup_urls:
+                        continue
+
+                    used_backup_urls.add(key)
+
+                    theme = item.get("theme", "")
+                    if theme == "competitor":
+                        category = "Competitor Move"
+                    elif theme == "solution":
+                        category = "New Solution / Capability"
+                    elif theme == "deal_market":
+                        category = "Major Client / Deal Opportunity"
+                    elif theme == "market":
+                        category = "New Market / Client Pool"
+                    else:
+                        category = "White-Space Opportunity"
+
+                    topics.append({
+                        "source_url": url,
+                        "category": category,
+                        "why_it_matters": "High-ranked real Qatar/GCC development with a plausible commercial or competitive implication for Doha Bank.",
+                        "potential_doha_bank_angle": "Assess the relevant revenue pool, client need, competitive response and business-owner action.",
+                        "what_is_new": clean_text(item.get("title", "")),
+                        "named_rival_or_actor": "",
+                        "target_client_or_market": "Relevant Qatar/GCC clients",
+                        "revenue_pool": "Lending, deposits, payments, treasury, trade finance, wealth or fee income as applicable.",
+                        "recommended_strategy_test": "Validate the opportunity or threat with the relevant business owner and priority clients.",
+                        "transmission_channel_to_doha_bank": "Commercial relevance through client activity, funding, payments, fees, lending or competitive positioning.",
+                    })
+
+                if len(topics) >= 6:
+                    break
+
+            if len(topics) < 6:
+                raise ValueError(
+                    f"Only {len(topics)} usable real candidates remained after Claude failure."
+                )
 
     valid = []
     used_urls = set()
@@ -914,23 +936,12 @@ Candidate intelligence:
         used_urls.add(url_key)
 
         t["topic_id"] = str(len(valid) + 1)
-        t["source_title"] = (
-            clean_text(t.get("source_title", ""))
-            or clean_text(matched.get("title", ""))
-        )
-        t["source_name"] = (
-            clean_text(t.get("source_name", ""))
-            or clean_text(matched.get("source", "News source"))
-        )
-        t["source_date"] = (
-            clean_text(t.get("source_date", ""))
-            or clean_text(matched.get("source_date", ""))
-            or TODAY
-        )
+        t["title"] = clean_text(matched.get("title", ""))
+        t["source_title"] = clean_text(matched.get("title", ""))
+        t["source_name"] = clean_text(matched.get("source", "News source"))
+        t["source_date"] = clean_text(matched.get("source_date", "")) or TODAY
         t["source_excerpt"] = article_excerpt(
-            t.get("source_excerpt")
-            or matched.get("summary")
-            or matched.get("title")
+            matched.get("summary") or matched.get("title")
         )
         t["geography"] = matched.get("geography", "")
 
