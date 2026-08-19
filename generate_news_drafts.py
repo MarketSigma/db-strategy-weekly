@@ -37,48 +37,48 @@ MUTED = "#8a99ad"
 # These searches are intentionally simple.
 # Google News RSS handles simple queries more reliably than complex Boolean strings.
 STRATEGIC_SEARCHES = [
-    # Qatar competitor / banking moves
-    ("Qatar", '"Dukhan Bank" payments OR fintech OR blockchain OR Kinexys OR partnership OR launch'),
-    ("Qatar", '"QNB" Qatar payments OR fintech OR partnership OR digital OR treasury OR launch'),
-    ("Qatar", '"Qatar Islamic Bank" payments OR fintech OR digital OR partnership OR launch'),
-    ("Qatar", '"Commercial Bank Qatar" payments OR fintech OR partnership OR launch'),
-    ("Qatar", '"Masraf Al Rayan" payments OR fintech OR digital OR partnership OR launch'),
-    ("Qatar", '"QIIB" Qatar payments OR fintech OR digital OR partnership OR launch'),
-    ("Qatar", '"Ahlibank Qatar" payments OR fintech OR digital OR partnership OR launch'),
+    # Qatar market / client / deal opportunities — FIRST
+    ("Qatar", 'QatarEnergy project contract investment'),
+    ("Qatar", 'Qatar infrastructure project contract financing'),
+    ("Qatar", 'Qatar company expansion investment financing'),
+    ("Qatar", 'Qatar new corporate investment project'),
+    ("Qatar", 'Qatar Financial Centre new firms expansion'),
+    ("Qatar", 'Qatar data center investment project'),
+    ("Qatar", 'Qatar logistics investment project'),
+    ("Qatar", 'Qatar manufacturing investment project'),
+    ("Qatar", 'Qatar healthcare investment project'),
+    ("Qatar", 'Qatar SME financing fintech'),
+    ("Qatar", 'Qatar private sector financing growth'),
+    ("Qatar", 'Qatar payments transaction volumes QCB'),
+    ("Qatar", 'Qatar digital payments banking'),
+    ("Qatar", 'Qatar wealth asset management expansion'),
+    ("Qatar", 'Qatar capital markets sukuk bond issuance'),
 
-    # Qatar banking / new solution / new client pool
-    ("Qatar", 'Qatar bank payments launch'),
-    ("Qatar", 'Qatar fintech banking partnership'),
-    ("Qatar", 'Qatar open banking launch'),
+    # Qatar banking solutions / white-space
     ("Qatar", 'Qatar transaction banking cash management'),
-    ("Qatar", 'Qatar corporate banking financing'),
-    ("Qatar", 'Qatar project finance bank'),
     ("Qatar", 'Qatar supply chain finance'),
     ("Qatar", 'Qatar B2B payments'),
     ("Qatar", 'Qatar embedded finance'),
-    ("Qatar", 'Qatar wealth management launch'),
+    ("Qatar", 'Qatar open banking launch'),
+    ("Qatar", 'Qatar fintech banking partnership'),
     ("Qatar", 'Qatar digital banking AI'),
 
-    # Qatar sectors / projects / deal opportunities
-    ("Qatar", 'QatarEnergy project contract awarded'),
-    ("Qatar", 'Qatar infrastructure project financing'),
-    ("Qatar", 'Qatar company expansion financing'),
-    ("Qatar", 'Qatar new investment project'),
-    ("Qatar", 'Qatar data center investment'),
-    ("Qatar", 'Qatar logistics investment'),
-    ("Qatar", 'Qatar manufacturing project investment'),
-    ("Qatar", 'Qatar healthcare investment project'),
-    ("Qatar", 'Qatar tourism investment project'),
-    ("Qatar", 'Qatar Financial Centre new company expansion'),
+    # Competitors — important, but capped later so they do not dominate
+    ("Qatar", '"Dukhan Bank" payments fintech blockchain Kinexys partnership launch'),
+    ("Qatar", '"QNB" Qatar payments fintech partnership digital treasury launch'),
+    ("Qatar", '"Qatar Islamic Bank" payments fintech digital partnership launch'),
+    ("Qatar", '"Commercial Bank Qatar" payments fintech partnership launch'),
+    ("Qatar", '"Masraf Al Rayan" payments fintech digital partnership launch'),
+    ("Qatar", '"QIIB" Qatar payments fintech digital partnership launch'),
+    ("Qatar", '"Ahlibank Qatar" payments fintech digital partnership launch'),
 
-    # GCC moves that could matter to Doha Bank
+    # GCC developments with plausible Doha Bank relevance
     ("GCC", 'GCC bank fintech partnership'),
     ("GCC", 'GCC bank payments launch'),
-    ("GCC", 'Saudi bank fintech payments partnership'),
+    ("GCC", 'Saudi bank transaction banking launch'),
     ("GCC", 'UAE bank transaction banking launch'),
-    ("GCC", 'GCC open banking payments'),
-    ("GCC", 'GCC digital bank market entry'),
     ("GCC", 'GCC supply chain finance platform'),
+    ("GCC", 'GCC corporate financing project bank'),
 ]
 
 # Optional standard RSS sources.
@@ -429,6 +429,31 @@ def relevance_score(item):
     return score
 
 
+def infer_theme(item):
+    combined = f"{clean_text(item.get('title', ''))} {clean_text(item.get('summary', ''))}".lower()
+
+    if any(name in combined for name in COMPETITOR_NAMES):
+        return "competitor"
+    if any(x in combined for x in [
+        "project", "contract", "awarded", "investment", "expansion",
+        "financing", "facility", "joint venture", "infrastructure"
+    ]):
+        return "deal_market"
+    if any(x in combined for x in [
+        "payments", "open banking", "embedded finance", "supply chain finance",
+        "transaction banking", "cash management", "fintech", "digital banking",
+        "blockchain", " ai "
+    ]):
+        return "solution"
+    if any(x in combined for x in [
+        "qfc", "new firms", "new companies", "sme", "manufacturing",
+        "logistics", "healthcare", "data center", "wealth",
+        "capital markets", "sukuk", "bond issuance"
+    ]):
+        return "market"
+    return "other"
+
+
 def is_relevant(item):
     return relevance_score(item) >= 55
 
@@ -437,7 +462,7 @@ def is_relevant(item):
 # 4. GOOGLE NEWS RSS SEARCH
 # ---------------------------------------------------------------------
 
-def google_news_rss_url(query, days=30):
+def google_news_rss_url(query, days=10):
     q = f"{query} when:{days}d"
     return (
         "https://news.google.com/rss/search?q="
@@ -451,7 +476,7 @@ def fetch_google_news():
     seen = set()
 
     for hinted_region, query in STRATEGIC_SEARCHES:
-        url = google_news_rss_url(query, days=30)
+        url = google_news_rss_url(query, days=10)
 
         try:
             feed = feedparser.parse(url)
@@ -501,6 +526,7 @@ def fetch_google_news():
                     continue
 
                 item["relevance_score"] = relevance_score(item)
+                item["theme"] = infer_theme(item)
 
                 seen.add(key)
                 items.append(item)
@@ -562,6 +588,7 @@ def fetch_standard_rss():
                     continue
 
                 item["relevance_score"] = relevance_score(item)
+                item["theme"] = infer_theme(item)
 
                 seen.add(key)
                 items.append(item)
@@ -671,16 +698,51 @@ def ai_select_topics(news_items, bank_name):
             "The workflow will not create synthetic fallback articles."
         )
 
-    # Keep the selection pool manageable and regionally weighted.
+    # Build a diversified pool so competitor stories do not dominate.
     qatar_items = [x for x in news_items if x.get("geography") == "Qatar"]
     gcc_items = [x for x in news_items if x.get("geography") == "GCC"]
     global_items = [x for x in news_items if x.get("geography") == "Global"]
 
-    selection_pool = qatar_items[:28] + gcc_items[:18]
+    qatar_deals = [x for x in qatar_items if x.get("theme") == "deal_market"]
+    qatar_solutions = [x for x in qatar_items if x.get("theme") == "solution"]
+    qatar_markets = [x for x in qatar_items if x.get("theme") == "market"]
+    qatar_competitors = [x for x in qatar_items if x.get("theme") == "competitor"]
+    qatar_other = [x for x in qatar_items if x.get("theme") == "other"]
 
-    # Only include a few global stories if Qatar/GCC supply is thin.
-    if len(selection_pool) < 30:
-        selection_pool += global_items[: max(0, 30 - len(selection_pool))]
+    gcc_non_competitor = [x for x in gcc_items if x.get("theme") != "competitor"]
+    gcc_competitor = [x for x in gcc_items if x.get("theme") == "competitor"]
+
+    selection_pool = (
+        qatar_deals[:10]
+        + qatar_solutions[:8]
+        + qatar_markets[:8]
+        + qatar_competitors[:6]
+        + qatar_other[:4]
+        + gcc_non_competitor[:8]
+        + gcc_competitor[:4]
+    )
+
+    pool_seen = set()
+    diversified = []
+    for item in selection_pool:
+        key = dedupe_key(item.get("link"), item.get("title"))
+        if key in pool_seen:
+            continue
+        pool_seen.add(key)
+        diversified.append(item)
+    selection_pool = diversified
+
+    if len(selection_pool) < 24:
+        selection_pool += global_items[: max(0, 24 - len(selection_pool))]
+
+    print(
+        "SELECTION POOL MIX | "
+        f"Qatar deals={len(qatar_deals)} | "
+        f"Qatar solutions={len(qatar_solutions)} | "
+        f"Qatar markets={len(qatar_markets)} | "
+        f"Qatar competitors={len(qatar_competitors)} | "
+        f"GCC={len(gcc_items)}"
+    )
 
     prompt = f"""
 You are the competitive-intelligence analyst for the Chief Strategy Officer of {bank_name}.
@@ -707,12 +769,19 @@ A story must have a direct transmission channel to Doha Bank through at least on
 - client retention
 - competitive positioning
 
-GEOGRAPHY:
+GEOGRAPHY AND FRESHNESS:
 - Prefer Qatar first.
 - Prefer GCC second.
+- Prefer stories from the last 7 days; use 8-14 day stories only when materially stronger.
 - Do NOT select a Qatar/GCC story just because it is local.
 - Relevance to Doha Bank is mandatory.
 - A global story may be selected only if its Doha Bank impact is clearly stronger than a regional alternative.
+
+PORTFOLIO MIX:
+- Select at most 2 competitor-focused stories.
+- Select at least 2 Qatar market/client/deal opportunities when credible candidates exist.
+- Select at least 1 new solution/capability or white-space opportunity when credible candidates exist.
+- The six topics should feel like a strategy opportunity set, not a competitor-monitoring newsletter.
 
 STRONGEST TYPES OF INTELLIGENCE:
 1. A named Qatar competitor launches or adopts a new capability.
@@ -723,6 +792,7 @@ STRONGEST TYPES OF INTELLIGENCE:
 6. A clear white-space opportunity emerges for Doha Bank.
 
 REJECT:
+- stories older than 14 days unless they represent an unusually material development that is still strategically active
 - generic GDP stories
 - generic inflation stories
 - Fed / ECB commentary
