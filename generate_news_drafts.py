@@ -79,6 +79,16 @@ STRATEGIC_SEARCHES = [
     ("GCC", 'UAE bank transaction banking launch'),
     ("GCC", 'GCC supply chain finance platform'),
     ("GCC", 'GCC corporate financing project bank'),
+
+    # Global developments — only major banking/technology/regulatory shifts
+    ("Global", 'global banks stablecoin payments launch'),
+    ("Global", 'major bank tokenized deposits blockchain payments'),
+    ("Global", 'global transaction banking cross-border payments platform'),
+    ("Global", 'major bank AI banking partnership launch'),
+    ("Global", 'Basel banking capital liquidity regulation update'),
+    ("Global", 'SWIFT instant cross-border payments bank launch'),
+    ("Global", 'global banking cyber attack payments disruption'),
+    ("Global", 'major central bank rate decision bank margins liquidity'),
 ]
 
 # Optional standard RSS sources.
@@ -207,6 +217,34 @@ COMMERCIAL_TERMS = [
     "new product",
     "new service",
 ]
+
+GLOBAL_SIGNIFICANCE_TERMS = [
+    "stablecoin",
+    "tokenized deposit",
+    "tokenised deposit",
+    "blockchain",
+    "cross-border payments",
+    "swift",
+    "basel",
+    "capital requirement",
+    "liquidity requirement",
+    "artificial intelligence",
+    " ai ",
+    "cyber attack",
+    "cyberattack",
+    "instant payments",
+    "central bank rate",
+    "interest rate decision",
+    "j.p. morgan",
+    "jpmorgan",
+    "hsbc",
+    "citi",
+    "standard chartered",
+    "bank of america",
+    "visa",
+    "mastercard",
+]
+
 
 LOW_VALUE_TERMS = [
     "award",
@@ -399,7 +437,10 @@ def relevance_score(item):
     elif geography == "GCC":
         score += 30
     else:
-        score -= 20
+        # Global items must earn their place through material banking relevance.
+        score -= 5
+        global_hits = sum(1 for term in GLOBAL_SIGNIFICANCE_TERMS if term in combined)
+        score += min(global_hits, 4) * 12
 
     # Banking relevance
     banking_hits = sum(1 for term in BANKING_TERMS if term in combined)
@@ -455,7 +496,10 @@ def infer_theme(item):
 
 
 def is_relevant(item):
-    return relevance_score(item) >= 55
+    score = relevance_score(item)
+    if item.get("geography") == "Global":
+        return score >= 45
+    return score >= 55
 
 
 # ---------------------------------------------------------------------
@@ -727,14 +771,25 @@ def ai_select_topics(news_items, bank_name):
     gcc_non_competitor = [x for x in gcc_items if x.get("theme") != "competitor"]
     gcc_competitor = [x for x in gcc_items if x.get("theme") == "competitor"]
 
-    # Keep the Claude payload compact to avoid truncated JSON responses.
+    # Deliberately mixed strategy pool:
+    # - Qatar business/deal opportunities
+    # - Qatar/GCC bank competitors and solutions
+    # - GCC developments
+    # - a small number of genuinely major global banking developments
+    global_major = sorted(
+        global_items,
+        key=lambda x: x.get("relevance_score", 0),
+        reverse=True,
+    )
+
     selection_pool = (
-        qatar_deals[:8]
-        + qatar_solutions[:5]
-        + qatar_markets[:4]
-        + qatar_competitors[:3]
+        qatar_deals[:6]
+        + qatar_solutions[:4]
+        + qatar_markets[:3]
+        + qatar_competitors[:4]
         + gcc_non_competitor[:3]
         + gcc_competitor[:2]
+        + global_major[:4]
     )
 
     pool_seen = set()
@@ -747,11 +802,8 @@ def ai_select_topics(news_items, bank_name):
         diversified.append(item)
     selection_pool = diversified
 
-    # Global stories are a true last resort. Keep the total Claude pool <= 25.
-    if len(selection_pool) < 18:
-        selection_pool += global_items[: max(0, 18 - len(selection_pool))]
-
-    selection_pool = selection_pool[:25]
+    # Keep total payload compact while preserving category diversity.
+    selection_pool = selection_pool[:26]
 
     print(
         "SELECTION POOL MIX | "
@@ -760,6 +812,7 @@ def ai_select_topics(news_items, bank_name):
         f"Qatar markets={len(qatar_markets)} | "
         f"Qatar competitors={len(qatar_competitors)} | "
         f"GCC={len(gcc_items)} | "
+        f"Global major={len(global_major)} | "
         f"Claude pool={len(selection_pool)}"
     )
 
@@ -783,11 +836,20 @@ Select exactly 6 REAL developments from the candidate list.
 
 Selection priorities:
 - Doha Bank relevance is mandatory.
-- Prefer Qatar first, GCC second.
-- Prefer stories from the last 7 days.
-- Maximum 2 competitor-focused stories.
-- Include at least 2 Qatar market/client/deal opportunities when credible candidates exist.
-- Include at least 1 solution/capability or white-space opportunity when credible candidates exist.
+- Prefer fresh stories from the last 7 days.
+- Choose a BALANCED portfolio rather than six variations of the same theme.
+
+TARGET MIX FOR THE 6:
+1. Two bank-competitor / banking-innovation stories from Qatar or GCC.
+2. Two Qatar non-competitor business, client, project or market opportunities.
+3. One major GCC development with a clear Doha Bank transmission channel.
+4. One major GLOBAL banking/technology/regulatory development with a clear Doha Bank transmission channel.
+
+Important:
+- The global story must be genuinely major: payments infrastructure, tokenised deposits/stablecoins,
+  AI banking, Basel/capital rules, cyber disruption, major rate/liquidity shift, or similar.
+- Do not select a global story just because it is famous.
+- Do not select weak Qatar news just to satisfy geography.
 - Reject generic macro commentary, awards, sponsorships, CSR and lifestyle stories.
 - Do not create fallback topics.
 - Do not invent sources, companies, projects or facts.
@@ -844,14 +906,13 @@ Candidate intelligence:
             topics = []
             used_backup_urls = set()
 
-            # Preserve the intended mix as much as possible.
+            # Preserve the intended mixed portfolio if Claude is unavailable.
             backup_buckets = [
-                qatar_deals[:3],
-                qatar_solutions[:2],
-                qatar_markets[:2],
-                qatar_competitors[:2],
-                gcc_non_competitor[:2],
-                gcc_competitor[:1],
+                qatar_competitors[:2],                               # 2 competitor / bank moves
+                (qatar_deals + qatar_markets)[:2],                  # 2 Qatar opportunities
+                (gcc_non_competitor + gcc_competitor)[:1],          # 1 GCC
+                global_major[:1],                                   # 1 major global
+                qatar_solutions[:2],                                # spare real candidates
                 qatar_other[:2],
             ]
 
@@ -956,7 +1017,8 @@ Candidate intelligence:
         "FINAL TOPIC MIX | "
         f"Qatar={sum(1 for x in valid if x.get('geography') == 'Qatar')} | "
         f"GCC={sum(1 for x in valid if x.get('geography') == 'GCC')} | "
-        f"Global={sum(1 for x in valid if x.get('geography') == 'Global')}"
+        f"Global={sum(1 for x in valid if x.get('geography') == 'Global')} | "
+        f"Competitor={sum(1 for x in valid if x.get('category') == 'Competitor Move')}"
     )
 
     for t in valid:
