@@ -325,13 +325,142 @@ LOW_VALUE_TERMS = [
     "campaign",
     "promotion",
     "prize",
-    "football",
-    "soccer",
-    "sports",
     "celebrity",
     "weather",
     "recipe",
     "podcast",
+]
+
+# Hard exclusion for sports. Qatar general-news RSS feeds often contain a large
+# sports section, so these items must be blocked BEFORE Qatar relevance scoring.
+SPORTS_TERMS = [
+    "football",
+    "soccer",
+    "fifa",
+    "afc ",
+    "afc champions",
+    "qatar stars league",
+    "qsl",
+    "stars league",
+    "world cup",
+    "asian cup",
+    "arab cup",
+    "champions league",
+    "premier league",
+    "la liga",
+    "serie a",
+    "bundesliga",
+    "ligue 1",
+    "match",
+    "fixture",
+    "tournament",
+    "semi-final",
+    "semifinal",
+    "quarter-final",
+    "quarterfinal",
+    "final clash",
+    "penalty shootout",
+    "kick-off",
+    "kickoff",
+    "goalkeeper",
+    "striker",
+    "midfielder",
+    "defender",
+    "coach",
+    "manager said after the game",
+    "stadium",
+    "al sadd",
+    "al rayyan",
+    "al duhail",
+    "al gharafa",
+    "al arabi club",
+    "umm salal",
+    "al wakrah",
+    "al shamal",
+    "al ahli sports club",
+    "sports club",
+    "formula 1",
+    "formula one",
+    "grand prix",
+    "motogp",
+    "tennis",
+    "atp ",
+    "wta ",
+    "basketball",
+    "volleyball",
+    "handball",
+    "cricket",
+    "athletics",
+]
+
+SPORTS_URL_TERMS = [
+    "/sport",
+    "/sports",
+    "/football",
+    "/soccer",
+    "/tennis",
+    "/cricket",
+]
+
+# A Qatar story must also contain an actual business/economic/banking signal.
+# This prevents general local news from qualifying simply because it says Qatar.
+ECONOMIC_SIGNAL_TERMS = [
+    "bank",
+    "banking",
+    "central bank",
+    "qcb",
+    "loan",
+    "lending",
+    "credit",
+    "deposit",
+    "deposits",
+    "liquidity",
+    "funding",
+    "finance",
+    "financing",
+    "investment",
+    "investor",
+    "economy",
+    "economic",
+    "gdp",
+    "inflation",
+    "interest rate",
+    "policy rate",
+    "trade",
+    "export",
+    "import",
+    "project",
+    "contract",
+    "infrastructure",
+    "real estate",
+    "property",
+    "mortgage",
+    "sme",
+    "private sector",
+    "qatarenergy",
+    "lng",
+    "energy",
+    "capital market",
+    "stock exchange",
+    "qse",
+    "sukuk",
+    "bond",
+    "payments",
+    "fintech",
+    "digital banking",
+    "cash management",
+    "treasury",
+    "wealth",
+    "asset management",
+    "corporate",
+    "company",
+    "companies",
+    "business",
+    "revenue",
+    "profit",
+    "earnings",
+    "acquisition",
+    "merger",
 ]
 
 
@@ -439,6 +568,22 @@ def contains_any(text, terms):
     return any(term in text for term in terms)
 
 
+def is_sports_item(item):
+    title = clean_text(item.get("title", ""))
+    summary = clean_text(item.get("summary", ""))
+    link = clean_text(item.get("link", ""))
+    combined = f" {title} {summary} ".lower()
+    link_lower = link.lower()
+
+    if contains_any(combined, SPORTS_TERMS):
+        return True
+
+    if any(term in link_lower for term in SPORTS_URL_TERMS):
+        return True
+
+    return False
+
+
 def classify_geography(title, summary, hinted_region=""):
     """
     Classify based on ARTICLE CONTENT, not publisher location.
@@ -481,8 +626,12 @@ def relevance_score(item):
     summary = clean_text(item.get("summary", ""))
     combined = f" {title} {summary} ".lower()
 
+    # Hard reject sports and other low-value content before any Qatar bonus.
+    if is_sports_item(item):
+        return -1000
+
     if contains_any(combined, LOW_VALUE_TERMS):
-        return -100
+        return -500
 
     geography = item.get("geography") or classify_geography(
         title,
@@ -570,16 +719,26 @@ def infer_theme(item):
 def has_minimum_transmission_signal(item):
     combined = f" {clean_text(item.get('title', ''))} {clean_text(item.get('summary', ''))} ".lower()
 
-    # Direct Doha Bank stories always qualify for review.
-    if contains_any(combined, DOHA_BANK_TERMS):
-        return True
+    # Sports is never eligible, even if the article mentions sponsorship,
+    # investment, contracts or a bank.
+    if is_sports_item(item):
+        return False
 
-    # Qatar stories need a banking, commercial or financial channel.
+    # Direct Doha Bank stories qualify only when they are not low-value PR/sports.
+    if contains_any(combined, DOHA_BANK_TERMS):
+        return not contains_any(combined, LOW_VALUE_TERMS)
+
+    # Qatar stories must contain an actual economic/business/banking signal.
+    # Merely mentioning Qatar/Doha is not enough.
     if item.get("geography") == "Qatar":
         return (
-            contains_any(combined, BANKING_TERMS)
-            or contains_any(combined, FINANCIAL_TRANSMISSION_TERMS)
-            or contains_any(combined, COMMERCIAL_TERMS)
+            contains_any(combined, ECONOMIC_SIGNAL_TERMS)
+            and (
+                contains_any(combined, BANKING_TERMS)
+                or contains_any(combined, FINANCIAL_TRANSMISSION_TERMS)
+                or contains_any(combined, COMMERCIAL_TERMS)
+                or contains_any(combined, ["economy", "economic", "gdp", "inflation", "qatarenergy", "lng"])
+            )
         )
 
     # GCC/global stories need an explicit financial/banking transmission signal.
@@ -754,6 +913,10 @@ def fetch_standard_rss():
 
 def fetch_news(max_items=60):
     combined = fetch_google_news() + fetch_standard_rss()
+
+    sports_blocked = sum(1 for x in combined if is_sports_item(x))
+    if sports_blocked:
+        print(f"SPORTS FILTER | blocked={sports_blocked}")
 
     seen = set()
     deduped = []
