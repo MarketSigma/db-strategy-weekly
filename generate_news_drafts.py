@@ -12,8 +12,8 @@ from urllib.parse import urlparse, quote
 import feedparser
 import anthropic
 
-# Reuse the final article generator so the approval draft and final send
-# use the same Doha Bank financial-analysis logic and same HTML template.
+# Reuse the final article generator so approval and final send use
+# the same Doha Bank financial-analysis logic and HTML template.
 try:
     import generate_weekly as weekly
 except ImportError:
@@ -34,72 +34,108 @@ MUTED = "#8a99ad"
 # 1. NEWS DISCOVERY CONFIGURATION
 # ---------------------------------------------------------------------
 
-# These searches are intentionally simple.
-# Google News RSS handles simple queries more reliably than complex Boolean strings.
+# Qatar-first discovery.
+#
+# IMPORTANT:
+# - Qatar is the primary market.
+# - GCC is secondary and must have a credible Qatar / Doha Bank channel.
+# - Global items are exceptional; there is NO global quota.
+# - Google News RSS is used for targeted discovery because many official
+#   and local sites do not expose stable RSS feeds.
+
 STRATEGIC_SEARCHES = [
-    # Qatar market / client / deal opportunities — FIRST
-    ("Qatar", 'QatarEnergy project contract investment'),
-    ("Qatar", 'Qatar infrastructure project contract financing'),
-    ("Qatar", 'Qatar company expansion investment financing'),
-    ("Qatar", 'Qatar new corporate investment project'),
-    ("Qatar", 'Qatar Financial Centre new firms expansion'),
-    ("Qatar", 'Qatar data center investment project'),
-    ("Qatar", 'Qatar logistics investment project'),
-    ("Qatar", 'Qatar manufacturing investment project'),
-    ("Qatar", 'Qatar healthcare investment project'),
-    ("Qatar", 'Qatar SME financing fintech'),
-    ("Qatar", 'Qatar private sector financing growth'),
+    # Doha Bank directly
+    ("Qatar", '"Doha Bank" Qatar'),
+    ("Qatar", '"Doha Bank" financing'),
+    ("Qatar", '"Doha Bank" corporate banking'),
+    ("Qatar", '"Doha Bank" trade finance'),
+    ("Qatar", '"Doha Bank" digital banking'),
+    ("Qatar", '"Doha Bank" sukuk bond funding'),
+    ("Qatar", '"Doha Bank" partnership'),
+
+    # Qatar banking system / regulation / monetary conditions
+    ("Qatar", '"Qatar Central Bank" banking sector'),
+    ("Qatar", '"Qatar Central Bank" credit growth'),
+    ("Qatar", '"Qatar Central Bank" deposits liquidity'),
+    ("Qatar", '"Qatar Central Bank" interest rates'),
+    ("Qatar", 'Qatar bank lending credit growth'),
+    ("Qatar", 'Qatar bank deposits liquidity'),
+    ("Qatar", 'Qatar private sector credit'),
+    ("Qatar", 'Qatar banking sector profitability liquidity capital'),
+
+    # Qatar economy / sovereign / projects
+    ("Qatar", 'Qatar economy GDP growth investment'),
+    ("Qatar", 'Qatar government spending projects contracts'),
+    ("Qatar", 'Qatar sovereign bond sukuk issuance'),
+    ("Qatar", 'Qatar infrastructure project financing'),
+    ("Qatar", 'Qatar private sector investment financing'),
+    ("Qatar", 'Qatar foreign investment companies expansion'),
+    ("Qatar", 'Qatar public private partnership project'),
+
+    # LNG / energy / industrial ecosystem
+    ("Qatar", 'QatarEnergy project contract investment financing'),
+    ("Qatar", 'Qatar LNG expansion contractors financing'),
+    ("Qatar", 'Ras Laffan project contract investment'),
+    ("Qatar", 'Qatar energy petrochemical industrial project financing'),
+
+    # Key Qatar client pools / sectors
+    ("Qatar", 'Qatar real estate market financing'),
+    ("Qatar", 'Qatar mortgage market banking'),
+    ("Qatar", 'Qatar SME financing growth'),
+    ("Qatar", 'Qatar logistics investment financing'),
+    ("Qatar", 'Qatar manufacturing investment financing'),
+    ("Qatar", 'Qatar healthcare investment financing'),
+    ("Qatar", 'Qatar tourism hospitality investment financing'),
+    ("Qatar", 'Qatar aviation investment financing'),
+    ("Qatar", 'Qatar trade imports exports finance'),
+
+    # Qatar payments / digital / capital markets
     ("Qatar", 'Qatar payments transaction volumes QCB'),
     ("Qatar", 'Qatar digital payments banking'),
-    ("Qatar", 'Qatar wealth asset management expansion'),
-    ("Qatar", 'Qatar capital markets sukuk bond issuance'),
-
-    # Qatar banking solutions / white-space
     ("Qatar", 'Qatar transaction banking cash management'),
     ("Qatar", 'Qatar supply chain finance'),
-    ("Qatar", 'Qatar B2B payments'),
-    ("Qatar", 'Qatar embedded finance'),
     ("Qatar", 'Qatar open banking launch'),
     ("Qatar", 'Qatar fintech banking partnership'),
-    ("Qatar", 'Qatar digital banking AI'),
+    ("Qatar", 'Qatar wealth asset management expansion'),
+    ("Qatar", 'Qatar capital markets sukuk bond issuance'),
+    ("Qatar", 'Qatar Stock Exchange listing capital markets'),
 
-    # Competitors — important, but capped later so they do not dominate
-    ("Qatar", '"Dukhan Bank" payments fintech blockchain Kinexys partnership launch'),
-    ("Qatar", '"QNB" Qatar payments fintech partnership digital treasury launch'),
-    ("Qatar", '"Qatar Islamic Bank" payments fintech digital partnership launch'),
-    ("Qatar", '"Commercial Bank Qatar" payments fintech partnership launch'),
-    ("Qatar", '"Masraf Al Rayan" payments fintech digital partnership launch'),
-    ("Qatar", '"QIIB" Qatar payments fintech digital partnership launch'),
-    ("Qatar", '"Ahlibank Qatar" payments fintech digital partnership launch'),
+    # Qatari competitors — useful but no fixed quota
+    ("Qatar", '"QNB" Qatar banking partnership launch'),
+    ("Qatar", '"Qatar Islamic Bank" banking partnership launch'),
+    ("Qatar", '"Commercial Bank Qatar" banking partnership launch'),
+    ("Qatar", '"Dukhan Bank" banking partnership launch'),
+    ("Qatar", '"Masraf Al Rayan" banking partnership launch'),
+    ("Qatar", '"QIIB" Qatar banking partnership launch'),
+    ("Qatar", '"Ahlibank Qatar" banking partnership launch'),
 
-    # GCC developments with plausible Doha Bank relevance
-    ("GCC", 'GCC bank fintech partnership'),
-    ("GCC", 'GCC bank payments launch'),
-    ("GCC", 'Saudi bank transaction banking launch'),
-    ("GCC", 'UAE bank transaction banking launch'),
-    ("GCC", 'GCC supply chain finance platform'),
-    ("GCC", 'GCC corporate financing project bank'),
+    # GCC — secondary only
+    ("GCC", 'GCC banking liquidity funding credit growth Qatar'),
+    ("GCC", 'GCC bank transaction banking payments Qatar'),
+    ("GCC", 'GCC project finance trade finance Qatar'),
+    ("GCC", 'GCC banking regulation capital liquidity Qatar'),
 
-    # Global developments — only major banking/technology/regulatory shifts
-    ("Global", 'global banks stablecoin payments launch'),
-    ("Global", 'major bank tokenized deposits blockchain payments'),
-    ("Global", 'global transaction banking cross-border payments platform'),
-    ("Global", 'major bank AI banking partnership launch'),
-    ("Global", 'Basel banking capital liquidity regulation update'),
-    ("Global", 'SWIFT instant cross-border payments bank launch'),
-    ("Global", 'global banking cyber attack payments disruption'),
-    ("Global", 'major central bank rate decision bank margins liquidity'),
+    # Global — exceptional only
+    ("Global", 'global banking Basel capital liquidity major change'),
+    ("Global", 'global cross-border payments SWIFT major change'),
+    ("Global", 'global banks tokenized deposits stablecoin major launch'),
+    ("Global", 'major central bank rate decision GCC Qatar banks'),
+    ("Global", 'global banking cyber disruption payments major banks'),
 ]
 
-# Optional standard RSS sources.
 DEFAULT_RSS_SOURCES = [
-    {"name": "Gulf Times", "rss": "https://www.gulf-times.com/rss", "region": "Qatar"},
-    {"name": "The Peninsula Qatar", "rss": "https://thepeninsulaqatar.com/rss", "region": "Qatar"},
-    {"name": "Arab News", "rss": "https://www.arabnews.com/rss.xml", "region": "GCC"},
-    {"name": "Al Jazeera", "rss": "https://www.aljazeera.com/xml/rss/all.xml", "region": "Regional"},
-    {"name": "CNBC Finance", "rss": "https://www.cnbc.com/id/10000664/device/rss/rss.html", "region": "Global"},
-    {"name": "BBC Business", "rss": "https://feeds.bbci.co.uk/news/business/rss.xml", "region": "Global"},
-    {"name": "BIS Press Releases", "rss": "https://www.bis.org/rss/press_releases.xml", "region": "Global"},
+    {"name": "Gulf Times", "rss": "https://www.gulf-times.com/rss", "region": "Qatar", "priority": 100},
+    {"name": "The Peninsula Qatar", "rss": "https://thepeninsulaqatar.com/rss", "region": "Qatar", "priority": 100},
+    {"name": "Arab News", "rss": "https://www.arabnews.com/rss.xml", "region": "GCC", "priority": 65},
+    {"name": "Al Jazeera", "rss": "https://www.aljazeera.com/xml/rss/all.xml", "region": "Regional", "priority": 45},
+    {"name": "CNBC Finance", "rss": "https://www.cnbc.com/id/10000664/device/rss/rss.html", "region": "Global", "priority": 20},
+    {"name": "BBC Business", "rss": "https://feeds.bbci.co.uk/news/business/rss.xml", "region": "Global", "priority": 15},
+    {"name": "BIS Press Releases", "rss": "https://www.bis.org/rss/press_releases.xml", "region": "Global", "priority": 20},
+]
+
+DOHA_BANK_TERMS = [
+    "doha bank",
+    "dhbk",
 ]
 
 COMPETITOR_NAMES = [
@@ -126,11 +162,23 @@ QATAR_TERMS = [
     "qatar investment authority",
     "qia",
     "qatar stock exchange",
-    "qfc",
+    "qse",
     "qatar financial centre",
     "qatar financial center",
+    "qfc",
     "lusail",
     "ras laffan",
+]
+
+QATAR_SYSTEM_TERMS = [
+    "qatar central bank",
+    "qcb",
+    "qatar banking sector",
+    "qatar banks",
+    "qatar bank",
+    "qatar stock exchange",
+    "qatar financial centre",
+    "qatar financial center",
 ]
 
 GCC_TERMS = [
@@ -173,7 +221,6 @@ BANKING_TERMS = [
     "open banking",
     "digital banking",
     "blockchain",
-    "kinexys",
     "wallet",
     "merchant",
     "acquiring",
@@ -187,6 +234,42 @@ BANKING_TERMS = [
     "api",
     "artificial intelligence",
     " ai ",
+]
+
+FINANCIAL_TRANSMISSION_TERMS = [
+    "lending",
+    "loan",
+    "loans",
+    "credit",
+    "deposit",
+    "deposits",
+    "funding",
+    "liquidity",
+    "interest rate",
+    "policy rate",
+    "margin",
+    "nim",
+    "fee income",
+    "fees",
+    "payments",
+    "trade finance",
+    "project finance",
+    "working capital",
+    "cash management",
+    "treasury",
+    "foreign exchange",
+    "fx",
+    "sukuk",
+    "bond",
+    "capital",
+    "npl",
+    "credit risk",
+    "asset quality",
+    "mortgage",
+    "real estate",
+    "investment",
+    "contract",
+    "project",
 ]
 
 COMMERCIAL_TERMS = [
@@ -210,10 +293,6 @@ COMMERCIAL_TERMS = [
     "solution",
     "market entry",
     "new entrant",
-    "first bank",
-    "first islamic bank",
-    "qatar's first",
-    "qatar’s first",
     "new product",
     "new service",
 ]
@@ -222,29 +301,19 @@ GLOBAL_SIGNIFICANCE_TERMS = [
     "stablecoin",
     "tokenized deposit",
     "tokenised deposit",
-    "blockchain",
     "cross-border payments",
     "swift",
     "basel",
     "capital requirement",
     "liquidity requirement",
-    "artificial intelligence",
-    " ai ",
     "cyber attack",
     "cyberattack",
     "instant payments",
     "central bank rate",
     "interest rate decision",
-    "j.p. morgan",
-    "jpmorgan",
-    "hsbc",
-    "citi",
-    "standard chartered",
-    "bank of america",
-    "visa",
-    "mastercard",
+    "systemic",
+    "global banks",
 ]
-
 
 LOW_VALUE_TERMS = [
     "award",
@@ -352,31 +421,8 @@ def load_rss_sources(path="news_sources.json"):
                     "name": clean_text(item.get("name")) or source_name_from_url(item["rss"]),
                     "rss": clean_text(item["rss"]),
                     "region": clean_text(item.get("region", "Global")).title(),
+                    "priority": int(item.get("priority", 0) or 0),
                 })
-            return result or DEFAULT_RSS_SOURCES
-
-        # Legacy grouped structure.
-        if isinstance(data, dict):
-            result = []
-            for group_name, items in data.items():
-                if not isinstance(items, list):
-                    continue
-
-                if group_name.lower() == "regional":
-                    region = "Qatar"
-                elif group_name.lower() == "global":
-                    region = "Global"
-                else:
-                    region = group_name.title()
-
-                for item in items:
-                    if isinstance(item, dict) and item.get("rss"):
-                        result.append({
-                            "name": clean_text(item.get("name")) or source_name_from_url(item["rss"]),
-                            "rss": clean_text(item["rss"]),
-                            "region": region,
-                        })
-
             return result or DEFAULT_RSS_SOURCES
 
     except Exception as e:
@@ -386,41 +432,56 @@ def load_rss_sources(path="news_sources.json"):
 
 
 # ---------------------------------------------------------------------
-# 3. RELEVANCE / SCORING
+# 3. GEOGRAPHY / RELEVANCE / SCORING
 # ---------------------------------------------------------------------
 
+def contains_any(text, terms):
+    return any(term in text for term in terms)
+
+
 def classify_geography(title, summary, hinted_region=""):
+    """
+    Classify based on ARTICLE CONTENT, not publisher location.
+
+    The old logic could label any story from a Qatar publisher as Qatar.
+    That is intentionally removed here.
+    """
     combined = f"{title} {summary}".lower()
 
-    if any(term in combined for term in QATAR_TERMS):
+    if contains_any(combined, QATAR_TERMS):
         return "Qatar"
 
-    if any(term in combined for term in GCC_TERMS):
-        return "GCC"
-
-    hinted = clean_text(hinted_region).lower()
-    if hinted == "qatar":
-        return "Qatar"
-    if hinted in ("gcc", "regional"):
+    if contains_any(combined, GCC_TERMS):
         return "GCC"
 
     return "Global"
 
 
-def relevance_score(item):
+def source_priority_bonus(item):
     """
-    Geography alone is not enough.
+    Converts the configured source priority into a modest ranking bonus.
+    Priority helps order similar stories; it does not override relevance.
+    """
+    try:
+        priority = int(item.get("source_priority", 0) or 0)
+    except Exception:
+        priority = 0
 
-    A strong item needs:
-    - Qatar/GCC relevance
-    - banking/commercial relevance
-    - preferably a named competitor, product, project, deal or client pool
-    """
+    if priority >= 90:
+        return 15
+    if priority >= 70:
+        return 10
+    if priority >= 40:
+        return 5
+    return 0
+
+
+def relevance_score(item):
     title = clean_text(item.get("title", ""))
     summary = clean_text(item.get("summary", ""))
-    combined = f"{title} {summary}".lower()
+    combined = f" {title} {summary} ".lower()
 
-    if any(term in combined for term in LOW_VALUE_TERMS):
+    if contains_any(combined, LOW_VALUE_TERMS):
         return -100
 
     geography = item.get("geography") or classify_geography(
@@ -431,41 +492,49 @@ def relevance_score(item):
 
     score = 0
 
-    # Geography
+    # Direct Doha Bank relevance dominates all other signals.
+    if contains_any(combined, DOHA_BANK_TERMS):
+        score += 50
+
+    # Qatar relevance.
     if geography == "Qatar":
-        score += 55
-    elif geography == "GCC":
         score += 30
-    else:
-        # Global items must earn their place through material banking relevance.
-        score -= 5
-        global_hits = sum(1 for term in GLOBAL_SIGNIFICANCE_TERMS if term in combined)
-        score += min(global_hits, 4) * 12
 
-    # Banking relevance
+    if contains_any(combined, QATAR_SYSTEM_TERMS):
+        score += 25
+
+    # Qatar corporate / project / client-pool relevance.
+    if geography == "Qatar" and contains_any(combined, COMMERCIAL_TERMS):
+        score += 25
+
+    # Qatari competitor move.
+    if geography == "Qatar" and contains_any(combined, COMPETITOR_NAMES):
+        score += 20
+
+    # Explicit banking transmission.
+    transmission_hits = sum(
+        1 for term in FINANCIAL_TRANSMISSION_TERMS if term in combined
+    )
+    score += min(transmission_hits, 4) * 5
+
+    # General banking relevance.
     banking_hits = sum(1 for term in BANKING_TERMS if term in combined)
-    commercial_hits = sum(1 for term in COMMERCIAL_TERMS if term in combined)
-    competitor_hits = sum(1 for term in COMPETITOR_NAMES if term in combined)
+    score += min(banking_hits, 4) * 4
 
-    score += min(banking_hits, 5) * 10
-    score += min(commercial_hits, 4) * 8
-    score += min(competitor_hits, 2) * 20
+    # GCC stories must work harder.
+    if geography == "GCC":
+        score += 8
 
-    # Strong strategic capabilities
-    for strong_term in [
-        "kinexys",
-        "blockchain",
-        "open banking",
-        "transaction banking",
-        "cash management",
-        "cross-border",
-        "supply chain finance",
-        "embedded finance",
-        "project finance",
-        "merchant acquiring",
-    ]:
-        if strong_term in combined:
-            score += 15
+    # Global stories start with a penalty and need exceptional materiality.
+    if geography == "Global":
+        score -= 25
+        global_hits = sum(
+            1 for term in GLOBAL_SIGNIFICANCE_TERMS if term in combined
+        )
+        score += min(global_hits, 4) * 10
+
+    # Use source priority only as a secondary ranking signal.
+    score += source_priority_bonus(item)
 
     return score
 
@@ -473,7 +542,9 @@ def relevance_score(item):
 def infer_theme(item):
     combined = f"{clean_text(item.get('title', ''))} {clean_text(item.get('summary', ''))}".lower()
 
-    if any(name in combined for name in COMPETITOR_NAMES):
+    if contains_any(combined, DOHA_BANK_TERMS):
+        return "doha_bank"
+    if contains_any(combined, COMPETITOR_NAMES):
         return "competitor"
     if any(x in combined for x in [
         "project", "contract", "awarded", "investment", "expansion",
@@ -488,18 +559,47 @@ def infer_theme(item):
         return "solution"
     if any(x in combined for x in [
         "qfc", "new firms", "new companies", "sme", "manufacturing",
-        "logistics", "healthcare", "data center", "wealth",
-        "capital markets", "sukuk", "bond issuance"
+        "logistics", "healthcare", "tourism", "aviation", "wealth",
+        "capital markets", "sukuk", "bond issuance", "real estate",
+        "mortgage", "lng", "qatarenergy"
     ]):
         return "market"
     return "other"
 
 
+def has_minimum_transmission_signal(item):
+    combined = f" {clean_text(item.get('title', ''))} {clean_text(item.get('summary', ''))} ".lower()
+
+    # Direct Doha Bank stories always qualify for review.
+    if contains_any(combined, DOHA_BANK_TERMS):
+        return True
+
+    # Qatar stories need a banking, commercial or financial channel.
+    if item.get("geography") == "Qatar":
+        return (
+            contains_any(combined, BANKING_TERMS)
+            or contains_any(combined, FINANCIAL_TRANSMISSION_TERMS)
+            or contains_any(combined, COMMERCIAL_TERMS)
+        )
+
+    # GCC/global stories need an explicit financial/banking transmission signal.
+    return (
+        contains_any(combined, FINANCIAL_TRANSMISSION_TERMS)
+        and contains_any(combined, BANKING_TERMS + GLOBAL_SIGNIFICANCE_TERMS)
+    )
+
+
 def is_relevant(item):
+    if not has_minimum_transmission_signal(item):
+        return False
+
     score = relevance_score(item)
-    if item.get("geography") == "Global":
+
+    if item.get("geography") == "Qatar":
         return score >= 45
-    return score >= 55
+    if item.get("geography") == "GCC":
+        return score >= 35
+    return score >= 20
 
 
 # ---------------------------------------------------------------------
@@ -554,7 +654,7 @@ def fetch_google_news():
 
                 item = {
                     "title": title,
-                    "summary": summary[:320],
+                    "summary": summary[:380],
                     "link": link,
                     "source": source_name,
                     "source_date": format_source_date(
@@ -562,6 +662,7 @@ def fetch_google_news():
                     ),
                     "geography": geography,
                     "hinted_region": hinted_region,
+                    "source_priority": 0,
                     "source_type": "google_news_search",
                     "search_query": query,
                 }
@@ -592,6 +693,7 @@ def fetch_standard_rss():
     for source_cfg in load_rss_sources():
         url = source_cfg["rss"]
         hinted_region = source_cfg.get("region", "Global")
+        source_priority = int(source_cfg.get("priority", 0) or 0)
 
         try:
             feed = feedparser.parse(url)
@@ -601,7 +703,7 @@ def fetch_standard_rss():
                 or source_name_from_url(url)
             )
 
-            for entry in feed.entries[:35]:
+            for entry in feed.entries[:40]:
                 title = clean_text(entry.get("title", ""))
                 summary = clean_text(entry.get("summary", ""))
                 link = clean_text(entry.get("link", ""))
@@ -613,11 +715,13 @@ def fetch_standard_rss():
                 if key in seen:
                     continue
 
+                # IMPORTANT: publisher region is only metadata.
+                # Geography is based on the article text itself.
                 geography = classify_geography(title, summary, hinted_region)
 
                 item = {
                     "title": title,
-                    "summary": summary[:320],
+                    "summary": summary[:380],
                     "link": link,
                     "source": source_name,
                     "source_date": format_source_date(
@@ -625,6 +729,7 @@ def fetch_standard_rss():
                     ),
                     "geography": geography,
                     "hinted_region": hinted_region,
+                    "source_priority": source_priority,
                     "source_type": "rss",
                 }
 
@@ -647,7 +752,7 @@ def fetch_standard_rss():
 # 6. MERGE / DEDUPE / RANK
 # ---------------------------------------------------------------------
 
-def fetch_news(max_items=50):
+def fetch_news(max_items=60):
     combined = fetch_google_news() + fetch_standard_rss()
 
     seen = set()
@@ -662,14 +767,14 @@ def fetch_news(max_items=50):
         seen.add(key)
         deduped.append(item)
 
-    # Qatar first, GCC second, Global last.
-    # Within each geography, sort by deterministic relevance score.
+    # Qatar first, then GCC, then Global.
     deduped.sort(
         key=lambda x: (
             2 if x.get("geography") == "Qatar"
             else 1 if x.get("geography") == "GCC"
             else 0,
             x.get("relevance_score", 0),
+            x.get("source_priority", 0),
         ),
         reverse=True,
     )
@@ -683,11 +788,12 @@ def fetch_news(max_items=50):
         f"Global={global_count} | total={len(deduped)}"
     )
 
-    for item in deduped[:25]:
+    for item in deduped[:30]:
         print(
             "CANDIDATE | "
             f"{item.get('geography')} | "
             f"score={item.get('relevance_score')} | "
+            f"priority={item.get('source_priority', 0)} | "
             f"{item.get('title')}"
         )
 
@@ -750,6 +856,67 @@ def extract_json_array(text):
     return json.loads(text[start : end + 1])
 
 
+def build_selection_pool(news_items):
+    qatar_items = sorted(
+        [x for x in news_items if x.get("geography") == "Qatar"],
+        key=lambda x: x.get("relevance_score", 0),
+        reverse=True,
+    )
+    gcc_items = sorted(
+        [x for x in news_items if x.get("geography") == "GCC"],
+        key=lambda x: x.get("relevance_score", 0),
+        reverse=True,
+    )
+    global_items = sorted(
+        [x for x in news_items if x.get("geography") == "Global"],
+        key=lambda x: x.get("relevance_score", 0),
+        reverse=True,
+    )
+
+    qatar_doha = [x for x in qatar_items if x.get("theme") == "doha_bank"]
+    qatar_deals = [x for x in qatar_items if x.get("theme") == "deal_market"]
+    qatar_markets = [x for x in qatar_items if x.get("theme") == "market"]
+    qatar_solutions = [x for x in qatar_items if x.get("theme") == "solution"]
+    qatar_competitors = [x for x in qatar_items if x.get("theme") == "competitor"]
+    qatar_other = [x for x in qatar_items if x.get("theme") == "other"]
+
+    # Strong Qatar representation without forcing category quotas.
+    # GCC/global are only added as alternatives after the best Qatar items.
+    candidates = (
+        qatar_doha[:5]
+        + qatar_deals[:8]
+        + qatar_markets[:8]
+        + qatar_solutions[:5]
+        + qatar_competitors[:5]
+        + qatar_other[:4]
+        + gcc_items[:6]
+        + global_items[:3]
+    )
+
+    seen = set()
+    diversified = []
+
+    for item in candidates:
+        key = dedupe_key(item.get("link"), item.get("title"))
+        if key in seen:
+            continue
+        seen.add(key)
+        diversified.append(item)
+
+    # Re-rank the merged pool by relevance while preserving enough Qatar breadth.
+    diversified.sort(
+        key=lambda x: (
+            2 if x.get("geography") == "Qatar"
+            else 1 if x.get("geography") == "GCC"
+            else 0,
+            x.get("relevance_score", 0),
+        ),
+        reverse=True,
+    )
+
+    return diversified[:30]
+
+
 def ai_select_topics(news_items, bank_name):
     if len(news_items) < 6:
         raise ValueError(
@@ -757,76 +924,28 @@ def ai_select_topics(news_items, bank_name):
             "The workflow will not create synthetic fallback articles."
         )
 
-    # Build a diversified pool so competitor stories do not dominate.
-    qatar_items = [x for x in news_items if x.get("geography") == "Qatar"]
-    gcc_items = [x for x in news_items if x.get("geography") == "GCC"]
-    global_items = [x for x in news_items if x.get("geography") == "Global"]
-
-    qatar_deals = [x for x in qatar_items if x.get("theme") == "deal_market"]
-    qatar_solutions = [x for x in qatar_items if x.get("theme") == "solution"]
-    qatar_markets = [x for x in qatar_items if x.get("theme") == "market"]
-    qatar_competitors = [x for x in qatar_items if x.get("theme") == "competitor"]
-    qatar_other = [x for x in qatar_items if x.get("theme") == "other"]
-
-    gcc_non_competitor = [x for x in gcc_items if x.get("theme") != "competitor"]
-    gcc_competitor = [x for x in gcc_items if x.get("theme") == "competitor"]
-
-    # Deliberately mixed strategy pool:
-    # - Qatar business/deal opportunities
-    # - Qatar/GCC bank competitors and solutions
-    # - GCC developments
-    # - a small number of genuinely major global banking developments
-    global_major = sorted(
-        global_items,
-        key=lambda x: x.get("relevance_score", 0),
-        reverse=True,
-    )
-
-    selection_pool = (
-        qatar_deals[:6]
-        + qatar_solutions[:4]
-        + qatar_markets[:3]
-        + qatar_competitors[:4]
-        + gcc_non_competitor[:3]
-        + gcc_competitor[:2]
-        + global_major[:4]
-    )
-
-    pool_seen = set()
-    diversified = []
-    for item in selection_pool:
-        key = dedupe_key(item.get("link"), item.get("title"))
-        if key in pool_seen:
-            continue
-        pool_seen.add(key)
-        diversified.append(item)
-    selection_pool = diversified
-
-    # Keep total payload compact while preserving category diversity.
-    selection_pool = selection_pool[:26]
+    selection_pool = build_selection_pool(news_items)
 
     print(
         "SELECTION POOL MIX | "
-        f"Qatar deals={len(qatar_deals)} | "
-        f"Qatar solutions={len(qatar_solutions)} | "
-        f"Qatar markets={len(qatar_markets)} | "
-        f"Qatar competitors={len(qatar_competitors)} | "
-        f"GCC={len(gcc_items)} | "
-        f"Global major={len(global_major)} | "
-        f"Claude pool={len(selection_pool)}"
+        f"Qatar={sum(1 for x in selection_pool if x.get('geography') == 'Qatar')} | "
+        f"GCC={sum(1 for x in selection_pool if x.get('geography') == 'GCC')} | "
+        f"Global={sum(1 for x in selection_pool if x.get('geography') == 'Global')} | "
+        f"Total={len(selection_pool)}"
     )
 
     compact_pool = []
     for item in selection_pool:
         compact_pool.append({
             "title": clean_text(item.get("title", "")),
-            "summary": article_excerpt(item.get("summary", ""), 260),
+            "summary": article_excerpt(item.get("summary", ""), 300),
             "link": clean_text(item.get("link", "")),
             "source": clean_text(item.get("source", "")),
             "source_date": clean_text(item.get("source_date", "")),
             "geography": clean_text(item.get("geography", "")),
             "theme": clean_text(item.get("theme", "")),
             "relevance_score": item.get("relevance_score", 0),
+            "source_priority": item.get("source_priority", 0),
         })
 
     prompt = f"""
@@ -834,25 +953,38 @@ You are the competitive-intelligence analyst for the Chief Strategy Officer of {
 
 Select exactly 6 REAL developments from the candidate list.
 
-Selection priorities:
-- Doha Bank relevance is mandatory.
-- Prefer fresh stories from the last 7 days.
-- Choose a BALANCED portfolio rather than six variations of the same theme.
+PRIMARY OBJECTIVE:
+Produce a Qatar-market intelligence briefing for Doha Bank, not a generic GCC or global banking digest.
 
-TARGET MIX FOR THE 6:
-1. Two bank-competitor / banking-innovation stories from Qatar or GCC.
-2. Two Qatar non-competitor business, client, project or market opportunities.
-3. One major GCC development with a clear Doha Bank transmission channel.
-4. One major GLOBAL banking/technology/regulatory development with a clear Doha Bank transmission channel.
+MANDATORY SELECTION RULES:
+1. Doha Bank relevance is mandatory for every selected development.
+2. Qatar-specific developments should dominate the six whenever sufficient material Qatar stories exist.
+3. Aim for AT LEAST FOUR Qatar-specific developments when four material Qatar candidates are available.
+4. There is NO required quota for competitor stories.
+5. There is NO required quota for GCC stories.
+6. There is NO required quota for global stories.
+7. A global development should be selected only if it is exceptionally material and has a stronger, clearer transmission channel to Doha Bank than the available Qatar/GCC alternatives.
+8. A GCC development may replace a Qatar development only when its Doha Bank transmission is stronger.
+9. Prefer developments from the last 7 days.
+10. Prefer developments affecting Qatar lending, deposits, funding, liquidity, margins, fees, payments, trade finance, project finance, asset quality, capital, client activity or competitive positioning.
+11. Reject generic macro commentary, awards, sponsorships, CSR, lifestyle stories and weak technology announcements.
+12. Do not create fallback topics.
+13. Do not invent sources, companies, projects or facts.
 
-Important:
-- The global story must be genuinely major: payments infrastructure, tokenised deposits/stablecoins,
-  AI banking, Basel/capital rules, cyber disruption, major rate/liquidity shift, or similar.
-- Do not select a global story just because it is famous.
-- Do not select weak Qatar news just to satisfy geography.
-- Reject generic macro commentary, awards, sponsorships, CSR and lifestyle stories.
-- Do not create fallback topics.
-- Do not invent sources, companies, projects or facts.
+DOHA BANK TRANSMISSION TEST:
+Before selecting an item, internally answer:
+- What changed?
+- Why does it matter specifically to Qatar?
+- Through what channel could it affect Doha Bank?
+- Which Doha Bank business area or financial metric could plausibly be affected?
+If the Qatar relevance or Doha Bank transmission is weak, DO NOT select it.
+
+For every candidate, distinguish:
+- DIRECT: explicitly involves Doha Bank or an immediate Qatar banking/client exposure.
+- INDIRECT: Qatar market development with a credible banking transmission.
+- SPECULATIVE: weak or generic connection.
+
+Do not select SPECULATIVE items.
 
 For each selected item return ONLY these fields:
 - source_url
@@ -865,14 +997,21 @@ For each selected item return ONLY these fields:
 - revenue_pool
 - recommended_strategy_test
 - transmission_channel_to_doha_bank
+- transmission_strength
 
 Allowed categories:
+- Doha Bank Development
 - Competitor Move
 - New Solution / Capability
 - New Market / Client Pool
 - Major Client / Deal Opportunity
 - Strategic Threat / Disruption
 - White-Space Opportunity
+- Qatar Macro / Regulatory Development
+
+Allowed transmission_strength:
+- DIRECT
+- INDIRECT
 
 Keep every text field concise: maximum 25 words.
 Return ONLY a valid JSON array of exactly 6 objects.
@@ -887,9 +1026,9 @@ Candidate intelligence:
         topics = extract_json_array(raw)
     except Exception as first_error:
         print(f"WARNING: First Claude selection attempt failed: {first_error}")
-        print("Retrying Claude with a smaller top-12 candidate pool.")
+        print("Retrying Claude with a smaller top-16 candidate pool.")
 
-        retry_pool = compact_pool[:12]
+        retry_pool = compact_pool[:16]
         retry_prompt = prompt.rsplit("Candidate intelligence:\n", 1)[0] + (
             "Candidate intelligence:\n"
             + json.dumps(retry_pool, ensure_ascii=False)
@@ -900,61 +1039,61 @@ Candidate intelligence:
             topics = extract_json_array(raw)
         except Exception as retry_error:
             print(f"WARNING: Claude retry also failed: {retry_error}")
-            print("Using deterministic selection from real discovered candidates; no synthetic fallbacks.")
-            print("NOTE: Candidate title/source metadata will be restored after URL matching.")
+            print("Using deterministic Qatar-first selection from real candidates.")
+
+            # Deterministic backup: take best real items, Qatar first.
+            backup = sorted(
+                selection_pool,
+                key=lambda x: (
+                    2 if x.get("geography") == "Qatar"
+                    else 1 if x.get("geography") == "GCC"
+                    else 0,
+                    x.get("relevance_score", 0),
+                ),
+                reverse=True,
+            )
 
             topics = []
             used_backup_urls = set()
 
-            # Preserve the intended mixed portfolio if Claude is unavailable.
-            backup_buckets = [
-                qatar_competitors[:2],                               # 2 competitor / bank moves
-                (qatar_deals + qatar_markets)[:2],                  # 2 Qatar opportunities
-                (gcc_non_competitor + gcc_competitor)[:1],          # 1 GCC
-                global_major[:1],                                   # 1 major global
-                qatar_solutions[:2],                                # spare real candidates
-                qatar_other[:2],
-            ]
-
-            for bucket in backup_buckets:
-                for item in bucket:
-                    if len(topics) >= 6:
-                        break
-
-                    url = clean_text(item.get("link", ""))
-                    key = url.split("?")[0].rstrip("/").lower()
-                    if not url or key in used_backup_urls:
-                        continue
-
-                    used_backup_urls.add(key)
-
-                    theme = item.get("theme", "")
-                    if theme == "competitor":
-                        category = "Competitor Move"
-                    elif theme == "solution":
-                        category = "New Solution / Capability"
-                    elif theme == "deal_market":
-                        category = "Major Client / Deal Opportunity"
-                    elif theme == "market":
-                        category = "New Market / Client Pool"
-                    else:
-                        category = "White-Space Opportunity"
-
-                    topics.append({
-                        "source_url": url,
-                        "category": category,
-                        "why_it_matters": "High-ranked real Qatar/GCC development with a plausible commercial or competitive implication for Doha Bank.",
-                        "potential_doha_bank_angle": "Assess the relevant revenue pool, client need, competitive response and business-owner action.",
-                        "what_is_new": clean_text(item.get("title", "")),
-                        "named_rival_or_actor": "",
-                        "target_client_or_market": "Relevant Qatar/GCC clients",
-                        "revenue_pool": "Lending, deposits, payments, treasury, trade finance, wealth or fee income as applicable.",
-                        "recommended_strategy_test": "Validate the opportunity or threat with the relevant business owner and priority clients.",
-                        "transmission_channel_to_doha_bank": "Commercial relevance through client activity, funding, payments, fees, lending or competitive positioning.",
-                    })
-
+            for item in backup:
                 if len(topics) >= 6:
                     break
+
+                url = clean_text(item.get("link", ""))
+                key = url.split("?")[0].rstrip("/").lower()
+                if not url or key in used_backup_urls:
+                    continue
+
+                used_backup_urls.add(key)
+
+                theme = item.get("theme", "")
+                if theme == "doha_bank":
+                    category = "Doha Bank Development"
+                elif theme == "competitor":
+                    category = "Competitor Move"
+                elif theme == "solution":
+                    category = "New Solution / Capability"
+                elif theme == "deal_market":
+                    category = "Major Client / Deal Opportunity"
+                elif theme == "market":
+                    category = "New Market / Client Pool"
+                else:
+                    category = "White-Space Opportunity"
+
+                topics.append({
+                    "source_url": url,
+                    "category": category,
+                    "why_it_matters": "High-ranked real development with a credible Qatar and Doha Bank banking transmission.",
+                    "potential_doha_bank_angle": "Assess impact on relevant client activity, lending, deposits, fees, funding or competitive positioning.",
+                    "what_is_new": clean_text(item.get("title", "")),
+                    "named_rival_or_actor": "",
+                    "target_client_or_market": "Relevant Qatar clients and sectors",
+                    "revenue_pool": "Lending, deposits, payments, treasury, trade finance, project finance or fee income as applicable.",
+                    "recommended_strategy_test": "Validate the commercial impact with the relevant business owner and priority client segments.",
+                    "transmission_channel_to_doha_bank": "Qatar market transmission through client activity, balance-sheet demand, fees, funding, risk or competitive positioning.",
+                    "transmission_strength": "DIRECT" if theme == "doha_bank" else "INDIRECT",
+                })
 
             if len(topics) < 6:
                 raise ValueError(
@@ -969,10 +1108,12 @@ Candidate intelligence:
             break
 
         url = clean_text(t.get("source_url", ""))
+        transmission_strength = clean_text(t.get("transmission_strength", "")).upper()
 
-        # The compact Claude response intentionally does not include title.
-        # Title/source/date/excerpt are restored from the matched real candidate below.
         if not url or url == "#":
+            continue
+
+        if transmission_strength not in ("DIRECT", "INDIRECT"):
             continue
 
         url_key = url.split("?")[0].rstrip("/").lower()
@@ -1004,6 +1145,7 @@ Candidate intelligence:
             matched.get("summary") or matched.get("title")
         )
         t["geography"] = matched.get("geography", "")
+        t["relevance_score"] = matched.get("relevance_score", 0)
 
         valid.append(t)
 
@@ -1018,13 +1160,14 @@ Candidate intelligence:
         f"Qatar={sum(1 for x in valid if x.get('geography') == 'Qatar')} | "
         f"GCC={sum(1 for x in valid if x.get('geography') == 'GCC')} | "
         f"Global={sum(1 for x in valid if x.get('geography') == 'Global')} | "
-        f"Competitor={sum(1 for x in valid if x.get('category') == 'Competitor Move')}"
+        f"Direct={sum(1 for x in valid if x.get('transmission_strength') == 'DIRECT')}"
     )
 
     for t in valid:
         print(
             f"SELECTED {t['topic_id']} | "
             f"{t.get('geography')} | "
+            f"{t.get('transmission_strength')} | "
             f"{t.get('category')} | "
             f"{t.get('title')}"
         )
@@ -1058,6 +1201,7 @@ def build_approval_email(drafts, approval_webhook_url):
         topic_id = str(t.get("topic_id", ""))
         category = str(t.get("category", ""))
         geography = str(t.get("geography", ""))
+        transmission_strength = str(t.get("transmission_strength", ""))
         article_html = strip_outer_html(draft["html_file_content"])
 
         source_name = html.escape(str(t.get("source_name", "")))
@@ -1071,7 +1215,9 @@ def build_approval_email(drafts, approval_webhook_url):
   </p>
 
   <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; color:{SLATE}; font-weight:bold;">
-    {html.escape(category)}{" · " + html.escape(geography) if geography else ""}
+    {html.escape(category)}
+    {" · " + html.escape(geography) if geography else ""}
+    {" · " + html.escape(transmission_strength) if transmission_strength else ""}
   </p>
 
   <h2 style="margin:0 0 14px 0; font-family:Georgia,serif; font-size:24px; line-height:1.25; color:{NAVY};">
@@ -1158,7 +1304,7 @@ def build_approval_email(drafts, approval_webhook_url):
   </h1>
 
   <p style="margin:8px 0 0 0; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:{MUTED};">
-    {TODAY} · Review the six strongest real strategic developments identified this cycle.
+    {TODAY} · Review the six strongest Qatar-first strategic developments identified this cycle.
   </p>
 </td>
 </tr>
@@ -1168,7 +1314,7 @@ def build_approval_email(drafts, approval_webhook_url):
 <tr>
 <td style="padding:18px 34px 26px 34px; border-top:1px solid #e2e8f0;">
   <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:{MUTED};">
-    Generated from public Qatar, GCC, competitor-bank and business-news sources. Review before distribution.
+    Generated from public sources with Qatar-first relevance screening and Doha Bank transmission testing. Review before distribution.
   </p>
 </td>
 </tr>
