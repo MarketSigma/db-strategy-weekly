@@ -1,27 +1,236 @@
 {
   "rates": {
-    "angle": "Rate cycle",
-    "keywords": ["fed", "rate cut", "interest rate", "central bank", "policy rate", "yield"],
-    "metrics": ["nim_pct", "net_loans", "customer_deposits", "net_profit"]
+    "angle": "Rates, margin and repricing",
+    "keywords": [
+      "fed",
+      "rate cut",
+      "rate hike",
+      "interest rate",
+      "central bank",
+      "policy rate",
+      "yield",
+      "qcb"
+    ],
+    "metrics": [
+      "nim_pct",
+      "net_interest_income",
+      "customer_deposits",
+      "net_loans",
+      "net_profit"
+    ],
+    "transmission": "Assess QCB/Fed repricing effects on asset yields, deposit pricing, funding cost, loan demand and net interest margin."
   },
   "liquidity": {
     "angle": "Liquidity and funding",
-    "keywords": ["liquidity", "deposit", "funding", "lending", "credit growth"],
-    "metrics": ["customer_deposits", "net_loans", "loan_deposit_ratio_pct", "lcr_pct"]
+    "keywords": [
+      "liquidity",
+      "deposit",
+      "deposits",
+      "funding",
+      "lending",
+      "credit growth",
+      "loan growth"
+    ],
+    "metrics": [
+      "customer_deposits",
+      "net_loans",
+      "loan_deposit_ratio_pct",
+      "lcr_pct",
+      "net_interest_income"
+    ],
+    "transmission": "Assess implications for deposit competition, loan-to-deposit dynamics, funding mix, liquidity buffers and lending capacity."
   },
   "asset_quality": {
-    "angle": "Asset quality",
-    "keywords": ["default", "npl", "credit risk", "provision", "impairment"],
-    "metrics": ["npl_ratio_pct", "coverage_ratio_pct", "cost_of_risk_bp"]
+    "angle": "Asset quality and credit risk",
+    "keywords": [
+      "default",
+      "npl",
+      "credit risk",
+      "provision",
+      "impairment",
+      "delinquency",
+      "real estate"
+    ],
+    "metrics": [
+      "npl_ratio_pct",
+      "coverage_ratio_pct",
+      "cost_of_risk_bp",
+      "net_profit"
+    ],
+    "transmission": "Assess sector-specific stress, borrower repayment capacity, collateral values, provisioning and potential impact on profitability."
   },
   "capital": {
     "angle": "Capital strength",
-    "keywords": ["capital", "basel", "cet1", "capital adequacy", "regulatory capital"],
-    "metrics": ["cet1_pct", "car_pct", "total_equity"]
+    "keywords": [
+      "capital",
+      "basel",
+      "cet1",
+      "capital adequacy",
+      "regulatory capital",
+      "risk-weighted assets"
+    ],
+    "metrics": [
+      "cet1_pct",
+      "car_pct",
+      "capital_adequacy_ratio_pct",
+      "total_equity",
+      "net_profit"
+    ],
+    "transmission": "Assess effects on capital consumption, lending headroom, risk-weighted assets, buffers and strategic balance-sheet capacity."
+  },
+  "qatar_projects": {
+    "angle": "Qatar projects and government-led investment",
+    "keywords": [
+      "qatar project",
+      "infrastructure",
+      "government spending",
+      "contract",
+      "awarded",
+      "public private partnership",
+      "ppp"
+    ],
+    "metrics": [
+      "net_loans",
+      "customer_deposits",
+      "operating_income",
+      "net_profit"
+    ],
+    "transmission": "Assess corporate lending, guarantees, working-capital finance, cash management, contractor deposits, trade finance and fee opportunities."
+  },
+  "lng_energy": {
+    "angle": "LNG, QatarEnergy and industrial ecosystem",
+    "keywords": [
+      "qatarenergy",
+      "qatar energy",
+      "lng",
+      "north field",
+      "ras laffan",
+      "petrochemical",
+      "energy project"
+    ],
+    "metrics": [
+      "net_loans",
+      "customer_deposits",
+      "operating_income",
+      "net_profit"
+    ],
+    "transmission": "Assess project finance, contractor and supplier financing, transaction banking, trade finance, FX, guarantees and deposit opportunities."
+  },
+  "real_estate": {
+    "angle": "Real estate and mortgage conditions",
+    "keywords": [
+      "real estate",
+      "property",
+      "mortgage",
+      "residential",
+      "commercial property",
+      "construction"
+    ],
+    "metrics": [
+      "net_loans",
+      "npl_ratio_pct",
+      "coverage_ratio_pct",
+      "net_profit"
+    ],
+    "transmission": "Assess mortgage and developer lending demand alongside collateral, concentration and asset-quality implications."
+  },
+  "trade_logistics": {
+    "angle": "Trade, logistics and cross-border activity",
+    "keywords": [
+      "trade",
+      "imports",
+      "exports",
+      "logistics",
+      "port",
+      "shipping",
+      "supply chain",
+      "cross-border"
+    ],
+    "metrics": [
+      "net_loans",
+      "customer_deposits",
+      "operating_income",
+      "net_profit"
+    ],
+    "transmission": "Assess trade-finance volumes, working-capital lending, FX, payments, cash management and fee-income opportunities."
+  },
+  "sme_private_sector": {
+    "angle": "SME and private-sector growth",
+    "keywords": [
+      "sme",
+      "small business",
+      "private sector",
+      "entrepreneur",
+      "startup",
+      "business growth"
+    ],
+    "metrics": [
+      "net_loans",
+      "customer_deposits",
+      "operating_income",
+      "net_profit"
+    ],
+    "transmission": "Assess SME lending, current-account deposits, merchant/payment income, payroll, working-capital and cross-sell opportunities."
+  },
+  "payments_digital": {
+    "angle": "Payments and digital banking",
+    "keywords": [
+      "payments",
+      "digital payments",
+      "wallet",
+      "merchant",
+      "acquiring",
+      "open banking",
+      "fintech",
+      "digital banking",
+      "instant payments"
+    ],
+    "metrics": [
+      "operating_income",
+      "operating_expenses",
+      "net_profit",
+      "customer_deposits"
+    ],
+    "transmission": "Assess fee income, transaction volumes, customer acquisition, deposit stickiness, technology costs and competitive response."
+  },
+  "capital_markets": {
+    "angle": "Capital markets and issuance",
+    "keywords": [
+      "sukuk",
+      "bond",
+      "capital markets",
+      "issuance",
+      "listing",
+      "qse",
+      "qatar stock exchange"
+    ],
+    "metrics": [
+      "operating_income",
+      "net_profit",
+      "customer_deposits",
+      "total_assets"
+    ],
+    "transmission": "Assess treasury, investment-banking, custody, distribution, liquidity-management and funding implications."
   },
   "growth": {
-    "angle": "Growth opportunity",
-    "keywords": ["qatar", "project", "infrastructure", "lng", "trade finance", "corporate lending"],
-    "metrics": ["net_loans", "operating_income", "net_profit", "roa_pct", "roe_pct"]
+    "angle": "Broader Qatar growth opportunity",
+    "keywords": [
+      "qatar",
+      "investment",
+      "expansion",
+      "project",
+      "corporate lending",
+      "foreign investment"
+    ],
+    "metrics": [
+      "net_loans",
+      "customer_deposits",
+      "operating_income",
+      "net_profit",
+      "roa_pct",
+      "roe_pct"
+    ],
+    "transmission": "Use only when a more specific rule does not apply. Connect economic activity to identifiable banking revenue pools or balance-sheet effects."
   }
 }
+    
