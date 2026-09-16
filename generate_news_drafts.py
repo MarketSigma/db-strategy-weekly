@@ -44,15 +44,6 @@ MUTED = "#8a99ad"
 #   and local sites do not expose stable RSS feeds.
 
 STRATEGIC_SEARCHES = [
-    # Doha Bank directly
-    ("Qatar", '"Doha Bank" Qatar'),
-    ("Qatar", '"Doha Bank" financing'),
-    ("Qatar", '"Doha Bank" corporate banking'),
-    ("Qatar", '"Doha Bank" trade finance'),
-    ("Qatar", '"Doha Bank" digital banking'),
-    ("Qatar", '"Doha Bank" sukuk bond funding'),
-    ("Qatar", '"Doha Bank" partnership'),
-
     # Qatar banking system / regulation / monetary conditions
     ("Qatar", '"Qatar Central Bank" banking sector'),
     ("Qatar", '"Qatar Central Bank" credit growth'),
@@ -584,6 +575,39 @@ def is_sports_item(item):
     return False
 
 
+def is_doha_bank_self_news(item):
+    """
+    Exclude stories whose underlying event is primarily about Doha Bank itself.
+
+    Opportunity/risk intelligence should start from an EXTERNAL development and
+    then assess its transmission to Doha Bank. A passing mention of Doha Bank in
+    a broader market story is not automatically excluded.
+    """
+    title = clean_text(item.get("title", "")).lower()
+    summary = clean_text(item.get("summary", "")).lower()
+
+    # A Doha Bank mention in the headline is a strong indication that Doha Bank
+    # is the subject of the news rather than the recipient of an external signal.
+    if contains_any(title, DOHA_BANK_TERMS):
+        return True
+
+    # Also reject common corporate/self-news constructions in the summary.
+    if contains_any(summary, DOHA_BANK_TERMS):
+        self_news_actions = [
+            "doha bank announced", "doha bank launches", "doha bank launched",
+            "doha bank signs", "doha bank signed", "doha bank partners",
+            "doha bank partnered", "doha bank wins", "doha bank won",
+            "doha bank receives", "doha bank received", "doha bank joins",
+            "doha bank joined", "doha bank appoints", "doha bank appointed",
+            "doha bank reports", "doha bank reported", "doha bank rating",
+            "doha bank's rating", "doha bank’s rating",
+        ]
+        if contains_any(summary, self_news_actions):
+            return True
+
+    return False
+
+
 def classify_geography(title, summary, hinted_region=""):
     """
     Classify based on ARTICLE CONTENT, not publisher location.
@@ -626,8 +650,11 @@ def relevance_score(item):
     summary = clean_text(item.get("summary", ""))
     combined = f" {title} {summary} ".lower()
 
-    # Hard reject sports and other low-value content before any Qatar bonus.
+    # Hard reject sports, Doha Bank self-news and other low-value content.
     if is_sports_item(item):
+        return -1000
+
+    if is_doha_bank_self_news(item):
         return -1000
 
     if contains_any(combined, LOW_VALUE_TERMS):
@@ -640,10 +667,6 @@ def relevance_score(item):
     )
 
     score = 0
-
-    # Direct Doha Bank relevance dominates all other signals.
-    if contains_any(combined, DOHA_BANK_TERMS):
-        score += 50
 
     # Qatar relevance.
     if geography == "Qatar":
@@ -691,8 +714,6 @@ def relevance_score(item):
 def infer_theme(item):
     combined = f"{clean_text(item.get('title', ''))} {clean_text(item.get('summary', ''))}".lower()
 
-    if contains_any(combined, DOHA_BANK_TERMS):
-        return "doha_bank"
     if contains_any(combined, COMPETITOR_NAMES):
         return "competitor"
     if any(x in combined for x in [
@@ -724,9 +745,9 @@ def has_minimum_transmission_signal(item):
     if is_sports_item(item):
         return False
 
-    # Direct Doha Bank stories qualify only when they are not low-value PR/sports.
-    if contains_any(combined, DOHA_BANK_TERMS):
-        return not contains_any(combined, LOW_VALUE_TERMS)
+    # Doha Bank self-news is not an opportunity/risk input.
+    if is_doha_bank_self_news(item):
+        return False
 
     # Qatar stories must contain an actual economic/business/banking signal.
     # Merely mentioning Qatar/Doha is not enough.
@@ -1036,7 +1057,6 @@ def build_selection_pool(news_items):
         reverse=True,
     )
 
-    qatar_doha = [x for x in qatar_items if x.get("theme") == "doha_bank"]
     qatar_deals = [x for x in qatar_items if x.get("theme") == "deal_market"]
     qatar_markets = [x for x in qatar_items if x.get("theme") == "market"]
     qatar_solutions = [x for x in qatar_items if x.get("theme") == "solution"]
@@ -1046,8 +1066,7 @@ def build_selection_pool(news_items):
     # Strong Qatar representation without forcing category quotas.
     # GCC/global are only added as alternatives after the best Qatar items.
     candidates = (
-        qatar_doha[:5]
-        + qatar_deals[:8]
+        qatar_deals[:10]
         + qatar_markets[:8]
         + qatar_solutions[:5]
         + qatar_competitors[:5]
@@ -1117,12 +1136,12 @@ You are the competitive-intelligence analyst for the Chief Strategy Officer of {
 Select exactly 6 REAL developments from the candidate list.
 
 PRIMARY OBJECTIVE:
-Produce a Qatar-market intelligence briefing for Doha Bank, not a generic GCC or global banking digest.
+Produce a Qatar-market intelligence briefing of EXTERNAL opportunities and risks for Doha Bank, not a digest of Doha Bank news and not a generic GCC/global banking digest.
 
 MANDATORY SELECTION RULES:
-1. Doha Bank relevance is mandatory for every selected development.
+1. A credible transmission channel to Doha Bank is mandatory, but the underlying news event must be EXTERNAL to Doha Bank.
 2. Qatar-specific developments should dominate the six whenever sufficient material Qatar stories exist.
-3. Aim for AT LEAST FOUR Qatar-specific developments when four material Qatar candidates are available.
+3. Prefer Qatar-specific external developments when material, but never sacrifice materiality or diversity merely to fill a Qatar quota.
 4. There is NO required quota for competitor stories.
 5. There is NO required quota for GCC stories.
 6. There is NO required quota for global stories.
@@ -1131,8 +1150,10 @@ MANDATORY SELECTION RULES:
 9. Prefer developments from the last 7 days.
 10. Prefer developments affecting Qatar lending, deposits, funding, liquidity, margins, fees, payments, trade finance, project finance, asset quality, capital, client activity or competitive positioning.
 11. Reject generic macro commentary, awards, sponsorships, CSR, lifestyle stories and weak technology announcements.
-12. Do not create fallback topics.
-13. Do not invent sources, companies, projects or facts.
+12. HARD RULE: Do not select news whose main subject is Doha Bank itself, including Doha Bank awards, ratings, appointments, sponsorships, product launches, partnerships, events, financial announcements or corporate PR.
+13. A story may mention Doha Bank only incidentally within a broader external market/industry development.
+14. Do not create fallback topics.
+15. Do not invent sources, companies, projects or facts.
 
 DOHA BANK TRANSMISSION TEST:
 Before selecting an item, internally answer:
@@ -1143,9 +1164,11 @@ Before selecting an item, internally answer:
 If the Qatar relevance or Doha Bank transmission is weak, DO NOT select it.
 
 For every candidate, distinguish:
-- DIRECT: explicitly involves Doha Bank or an immediate Qatar banking/client exposure.
-- INDIRECT: Qatar market development with a credible banking transmission.
+- DIRECT: an external development with an immediate, concrete Doha Bank exposure/channel (for example a system-wide QCB action or directly affected client/market).
+- INDIRECT: an external Qatar/GCC/global development with a credible banking transmission.
 - SPECULATIVE: weak or generic connection.
+
+DIRECT does NOT mean news about Doha Bank itself. Doha Bank self-news must be rejected.
 
 Do not select SPECULATIVE items.
 
@@ -1163,7 +1186,6 @@ For each selected item return ONLY these fields:
 - transmission_strength
 
 Allowed categories:
-- Doha Bank Development
 - Competitor Move
 - New Solution / Capability
 - New Market / Client Pool
@@ -1231,9 +1253,7 @@ Candidate intelligence:
                 used_backup_urls.add(key)
 
                 theme = item.get("theme", "")
-                if theme == "doha_bank":
-                    category = "Doha Bank Development"
-                elif theme == "competitor":
+                if theme == "competitor":
                     category = "Competitor Move"
                 elif theme == "solution":
                     category = "New Solution / Capability"
@@ -1255,7 +1275,7 @@ Candidate intelligence:
                     "revenue_pool": "Lending, deposits, payments, treasury, trade finance, project finance or fee income as applicable.",
                     "recommended_strategy_test": "Validate the commercial impact with the relevant business owner and priority client segments.",
                     "transmission_channel_to_doha_bank": "Qatar market transmission through client activity, balance-sheet demand, fees, funding, risk or competitive positioning.",
-                    "transmission_strength": "DIRECT" if theme == "doha_bank" else "INDIRECT",
+                    "transmission_strength": "INDIRECT",
                 })
 
             if len(topics) < 6:
@@ -1295,6 +1315,11 @@ Candidate intelligence:
         )
 
         if not matched:
+            continue
+
+        # Final safety gate: Claude/fallback can never reintroduce Doha Bank self-news.
+        if is_doha_bank_self_news(matched):
+            print(f"SELF-NEWS FILTER | rejected selected item: {matched.get('title', '')}")
             continue
 
         used_urls.add(url_key)
