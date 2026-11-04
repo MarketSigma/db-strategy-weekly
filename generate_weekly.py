@@ -330,11 +330,11 @@ def ai_write_article(topic, metrics, bank_name, impact_rules):
     scenario_guidance = """
 SPECIAL MANDATORY FORMAT — US/ISRAEL-IRAN ESCALATION SCENARIO:
 This is a forward-looking strategic stress assessment, NOT an incident recap.
-Lead with: 'If the US and/or Israel conduct renewed military strikes against Iran, what could happen to Qatar and Doha Bank?'
+Lead with the current geopolitical risk and its business significance, not a hypothetical question. Frame renewed US/Israeli strikes on Iran as a material escalation scenario requiring readiness, without asserting the strikes are imminent or more likely than not unless the cited Reuters report explicitly supports that conclusion.
 Use the Reuters source only as the verified news trigger. Do not assert hypothetical attacks occurred.
-In doha_bank_impact, explicitly distinguish three conditional scenarios: (1) limited strikes, (2) sustained escalation, (3) wider regional conflict. Trace impacts through Qatar LNG exports and routes, oil/LNG prices, fiscal conditions, investor sentiment, banking-system liquidity and funding, corporate credit risk, trade finance, and treasury risk. State that higher energy prices may be beneficial to revenues while physical disruption may offset those gains. Explain what Doha Bank should monitor, without claiming bank-specific exposures absent data.
+In doha_bank_impact, prioritize the central management assessment of renewed military escalation; mention limited versus prolonged conflict only when this materially changes the conclusion. Trace impacts through Qatar LNG exports and routes, oil/LNG prices, fiscal conditions, investor sentiment, banking-system liquidity and funding, corporate credit risk, trade finance, and treasury risk. State that higher energy prices may be beneficial to revenues while physical disruption may offset those gains. Explain what Doha Bank should monitor, without claiming bank-specific exposures absent data.
 The risk list must identify the most material Qatar/Doha Bank transmission channels, not focus on a tanker being hit. The strategic options must include concrete early-warning indicators, liquidity stress testing and sector-level credit exposure review.
-Do not invent numerical scenario probabilities, losses, funding spreads, forecasts or bank exposures. For impact_table, if a numerical forecast is unsupported, use empty projected_value and a QUALITATIVE conditional change; never invent precision. Label all scenarios as hypothetical and distinguish them from reported facts.
+Do not invent numerical scenario probabilities, losses, funding spreads, forecasts or bank exposures. For impact_table, ALWAYS populate projected_value with a concise, specific directional assessment (e.g. "Upward pressure", "Potential tightening", "Higher disruption risk") if a numeric projection cannot be evidenced. Use change for the mechanism or trigger, not a duplicate projection. Never invent numeric forecasts, probability or bank-specific exposure. Distinguish verified developments from forward-looking risk assessment without repetitive hypothetical disclaimers.
 """ if topic.get("scenario_assessment") else ""
 
     prompt = f"""
@@ -373,7 +373,7 @@ Use this EXACT JSON structure:
 Global rules:
 - Do NOT invent financial numbers.
 - Only use Doha Bank figures present in the Supabase data below.
-- If a metric or prior period is missing, use an empty string "" for that value.
+- If a reported current metric or prior period is missing, use an empty string "" for that CURRENT value only. Do not leave projected_value blank for a relevant risk metric: use a qualitative directional assessment.
 - Never write "not available".
 - Never display raw database metric codes such as customer_deposits, net_loans, loan_deposit_ratio_pct, total_assets, net_profit, cost_income_ratio_pct, or capital_adequacy_ratio_pct.
 - Always use clean business metric labels such as Customer Deposits, Net Loans, Loan-to-Deposit Ratio, Total Assets, Net Profit, Cost-to-Income Ratio, and Capital Adequacy Ratio.
@@ -404,8 +404,8 @@ impact_table:
 - 2 to 5 rows.
 - Only include metrics this development materially moves.
 - current_value = latest reported value from Supabase only.
-- projected_value = reasoned estimate after the development plays out.
-- change = movement from current to projected.
+- projected_value = defensible numeric estimate ONLY if supported by source data and explicit assumptions; otherwise a concise qualitative directional impact. Never blank for a material risk metric.
+- change = short explanation of the transmission mechanism or expected movement, not an unsupported numeric change.
 - Do not include a metric if the development does not plausibly move it.
 - The metric field must contain only clean business labels, never snake_case database codes.
 
@@ -443,12 +443,38 @@ Strict financial data rules:
 - Values are already converted into QAR bn, QAR m, %, or ratio format.
 - Do not write values in "k" or "thousands".
 - Do not re-scale or re-convert the figures.
-- If you calculate projected_value, base it only on the displayed current value and make the assumption explicit.
+- If you calculate a numeric projected_value, base it on a reported current value and explicitly stated defensible assumptions; otherwise give a directional qualitative assessment.
 - If the required current metric is not listed above, leave current_value as "".
 """
 
     text = ask_claude(prompt)
-    return sanitize_article(extract_json_object(text))
+    article = sanitize_article(extract_json_object(text))
+    if topic.get("scenario_assessment"):
+        # The report must never show an empty projected column for relevant risk indicators.
+        directional = {
+            "liquid": "Potential tightening",
+            "fund": "Upward cost pressure",
+            "deposit": "Potential volatility",
+            "credit": "Higher downside risk",
+            "loan": "Selective pressure",
+            "trade": "Disruption risk increases",
+            "treasury": "Higher volatility",
+            "market": "Higher volatility",
+            "lng": "Higher disruption risk",
+            "energy": "Price upside; export risk",
+            "capital": "Potential pressure",
+            "profit": "Downside risk",
+            "income": "Greater earnings volatility",
+            "asset": "Higher risk sensitivity",
+        }
+        for row in article.get("impact_table", []):
+            if not isinstance(row, dict):
+                continue
+            projected = str(row.get("projected_value") or "").strip()
+            if not projected or projected.lower() in {"—", "-", "n/a", "not available", "unknown"}:
+                metric = str(row.get("metric") or "").lower()
+                row["projected_value"] = next((v for k, v in directional.items() if k in metric), "Heightened risk sensitivity")
+    return article
 
 
 def build_final_email(topic, article):
@@ -641,7 +667,7 @@ def build_final_email(topic, article):
       </tr>
       {rows}
     </table>
-    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Doha Bank figures are based on reported results. Projected figures are model-based estimates intended to illustrate potential impact.</p>
+    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Current figures, where shown, reflect reported data. Projected impacts are directional management assessments unless an explicit numerical assumption is stated; they are not forecasts or confirmed bank exposures.</p>
   </td></tr>
 
   <tr><td class="pad" style="padding:32px 44px 0 44px;">
