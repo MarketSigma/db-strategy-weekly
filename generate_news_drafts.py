@@ -1011,6 +1011,14 @@ def fetch_news(max_items=60):
             f"{item.get('title')}"
         )
 
+    # Reserve discovery capacity for global developments before Qatar-first truncation.
+    # A global article must still pass the existing relevance/source checks.
+    global_discovered = [x for x in deduped if x.get("geography") == "Global"]
+    if global_discovered and max_items > 1:
+        reserved = global_discovered[:min(8, max(1, max_items // 6))]
+        reserved_keys = {dedupe_key(x.get("link"), x.get("title")) for x in reserved}
+        local = [x for x in deduped if dedupe_key(x.get("link"), x.get("title")) not in reserved_keys]
+        return local[:max_items - len(reserved)] + reserved
     return deduped[:max_items]
 
 
@@ -1126,10 +1134,13 @@ def build_selection_pool(news_items):
         reverse=True,
     )
 
-    # Preserve global visibility despite the Qatar-first ordering.
+    # Explicitly reserve global candidates; Qatar-first sorting otherwise drops them.
     shortlisted = diversified[:30]
-    if global_items and not any(x.get("geography") == "Global" for x in shortlisted):
-        shortlisted[-1] = global_items[0]
+    if global_items:
+        reserved = global_items[:min(5, len(global_items))]
+        reserved_keys = {dedupe_key(x.get("link"), x.get("title")) for x in reserved}
+        local = [x for x in shortlisted if dedupe_key(x.get("link"), x.get("title")) not in reserved_keys]
+        shortlisted = local[:30 - len(reserved)] + reserved
     return shortlisted
 
 
@@ -1247,7 +1258,10 @@ Candidate intelligence:
         print(f"WARNING: First Claude selection attempt failed: {first_error}")
         print("Retrying Claude with a smaller top-16 candidate pool.")
 
-        retry_pool = compact_pool[:16]
+        # Retain global articles in retry even when Qatar dominates the ranking.
+        retry_global = [x for x in compact_pool if x.get("geography") == "Global"][:3]
+        retry_local = [x for x in compact_pool if x.get("geography") != "Global"]
+        retry_pool = retry_local[:max(0, 16 - len(retry_global))] + retry_global
         retry_prompt = prompt.rsplit("Candidate intelligence:\n", 1)[0] + (
             "Candidate intelligence:\n"
             + json.dumps(retry_pool, ensure_ascii=False)
@@ -1387,17 +1401,12 @@ Candidate intelligence:
              and clean_text(x.get("link", ""))),
             key=lambda x: x.get("relevance_score", 0), reverse=True,
         )
-        if not global_candidates:
-            raise ValueError(
-                "No eligible verified global article found. Cannot guarantee a "
-                "global article without inventing a source; expand news sources "
-                "or the search window and rerun."
-            )
         global_item = next((x for x in global_candidates
             if x.get("link", "").split("?")[0].rstrip("/").lower() not in used_urls), None)
         if global_item is None:
-            raise ValueError("No unused eligible global source remains")
-        replacement = {
+            print("WARNING: No eligible sourced global development this run; publishing six real Qatar/GCC articles instead.")
+        else:
+            replacement = {
             "source_url": global_item["link"],
             "category": "Strategic Threat / Disruption",
             "why_it_matters": "Global development with a plausible transmission to Qatar's economy and banking sector.",
@@ -1418,10 +1427,10 @@ Candidate intelligence:
             "geography": "Global",
             "relevance_score": global_item.get("relevance_score", 0),
         }
-        # Replace the lowest-ranked non-global story, retaining six articles.
-        replace_idx = min(range(len(valid)), key=lambda i: valid[i].get("relevance_score", 0))
-        valid[replace_idx] = replacement
-        print(f"GLOBAL SLOT ENFORCED | {replacement['title']}")
+            # Replace the lowest-ranked non-global story, retaining six articles.
+            replace_idx = min(range(len(valid)), key=lambda i: valid[i].get("relevance_score", 0))
+            valid[replace_idx] = replacement
+            print(f"GLOBAL SLOT ENFORCED | {replacement['title']}")
 
     for i, topic in enumerate(valid, 1):
         topic["topic_id"] = str(i)
