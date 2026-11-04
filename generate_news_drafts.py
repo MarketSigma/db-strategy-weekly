@@ -106,6 +106,19 @@ STRATEGIC_SEARCHES = [
     ("GCC", 'GCC project finance trade finance Qatar'),
     ("GCC", 'GCC banking regulation capital liquidity Qatar'),
 
+    # Reuters-first geopolitical early-warning searches. Keep queries short enough
+    # for Google News to return real stories, rather than requiring all keywords.
+    ("Global", 'site:reuters.com "Iran" "Trump"'),
+    ("Global", 'site:reuters.com "Iran" "war"'),
+    ("Global", 'site:reuters.com "US" "Iran"'),
+    ("Global", 'site:reuters.com "Strait of Hormuz"'),
+    ("Global", 'site:reuters.com "US midterm elections" markets'),
+    ("Global", 'site:reuters.com "Trump" "sanctions" Iran'),
+    ("Global", 'site:reuters.com "Gulf" "Iran" markets'),
+    ("Global", 'site:reuters.com "Trump" tariffs global markets'),
+    ("Global", 'US Iran conflict Gulf energy markets Reuters'),
+    ("Global", 'Trump election results foreign policy markets Reuters'),
+
     # Global financial and geopolitical shocks with Qatar banking transmission
     ("Global", 'global banking Basel capital liquidity major change'),
     ("Global", 'global cross-border payments SWIFT major change'),
@@ -327,6 +340,34 @@ GLOBAL_SIGNIFICANCE_TERMS = [
     "strait of hormuz", "shipping disruption", "oil supply", "lng supply",
     "sanctions", "military escalation", "geopolitical", "energy supply",
 ]
+
+# Geopolitical relevance is determined from the event itself, not whether
+# the publisher explicitly mentions banking, Qatar or Doha Bank.
+GEOPOLITICAL_HEADLINE_TERMS = [
+    "iran", "israel", "hormuz", "trump", "us election", "u.s. election",
+    "midterm", "white house", "pentagon", "sanctions", "tariff",
+    "ceasefire", "missile", "airstrike", "military strike", "gulf war",
+]
+GEOPOLITICAL_EVENT_TERMS = [
+    "war", "attack", "strike", "conflict", "tension", "escalat",
+    "election", "vote", "sanction", "tariff", "policy", "military",
+    "shipping", "hormuz", "oil", "lng", "market", "trade",
+]
+
+def is_priority_geopolitical(item):
+    title = clean_text(item.get("title", "")).lower()
+    summary = clean_text(item.get("summary", "")).lower()
+    return (contains_any(title, GEOPOLITICAL_HEADLINE_TERMS)
+            and contains_any(title + " " + summary, GEOPOLITICAL_EVENT_TERMS))
+
+def geopolitical_rank(item):
+    source = clean_text(item.get("source", "")).lower()
+    title = clean_text(item.get("title", "")).lower()
+    return (
+        1 if is_priority_geopolitical(item) else 0,
+        1 if "reuters" in source or "reuters" in title else 0,
+        item.get("relevance_score", 0),
+    )
 
 LOW_VALUE_TERMS = [
     "award",
@@ -727,6 +768,9 @@ def relevance_score(item):
         )
         score += min(global_hits, 4) * 10
 
+    if geography == "Global" and is_priority_geopolitical(item):
+        score += 45
+
     # Use source priority only as a secondary ranking signal.
     score += source_priority_bonus(item)
 
@@ -783,6 +827,9 @@ def has_minimum_transmission_signal(item):
                 or contains_any(combined, ["economy", "economic", "gdp", "inflation", "qatarenergy", "lng"])
             )
         )
+
+    if item.get("geography") == "Global" and is_priority_geopolitical(item):
+        return True
 
     # A verified geopolitical shock can transmit through energy, shipping,
     # insurance or trade even if the headline does not explicitly say "bank".
@@ -877,6 +924,10 @@ def fetch_google_news():
                     "search_query": query,
                 }
 
+                # A geopolitical event remains in the global-risk bucket even
+                # when the Reuters story mentions Qatar or Gulf markets.
+                if hinted_region == "Global" and is_priority_geopolitical(item):
+                    item["geography"] = "Global"
                 if not is_relevant(item):
                     continue
 
@@ -1013,7 +1064,10 @@ def fetch_news(max_items=60):
 
     # Reserve discovery capacity for global developments before Qatar-first truncation.
     # A global article must still pass the existing relevance/source checks.
-    global_discovered = [x for x in deduped if x.get("geography") == "Global"]
+    global_discovered = sorted(
+        [x for x in deduped if x.get("geography") == "Global"],
+        key=geopolitical_rank, reverse=True,
+    )
     if global_discovered and max_items > 1:
         reserved = global_discovered[:min(8, max(1, max_items // 6))]
         reserved_keys = {dedupe_key(x.get("link"), x.get("title")) for x in reserved}
@@ -1091,8 +1145,7 @@ def build_selection_pool(news_items):
     )
     global_items = sorted(
         [x for x in news_items if x.get("geography") == "Global"],
-        key=lambda x: x.get("relevance_score", 0),
-        reverse=True,
+        key=geopolitical_rank, reverse=True,
     )
 
     qatar_deals = [x for x in qatar_items if x.get("theme") == "deal_market"]
@@ -1189,7 +1242,7 @@ MANDATORY SELECTION RULES:
 3. Prefer Qatar-specific external developments when material, but never sacrifice materiality or diversity merely to fill a Qatar quota.
 4. There is NO required quota for competitor stories.
 5. There is NO required quota for GCC stories.
-6. Select AT LEAST ONE verified Global development among the six, provided an eligible global candidate exists. Prefer material geopolitical, energy, trade, monetary or financial shocks.
+6. Select AT LEAST ONE verified Global development among the six, provided an eligible global candidate exists. PRIORITIZE Reuters coverage of US-Iran war/escalation, Trump policy, US election outcomes, sanctions and Hormuz security over generic banking technology news. Do not treat a hypothetical conflict as confirmed.
 7. Explain the concrete Qatar-to-Doha-Bank transmission for that global development; separate observed facts from conditional bank impacts.
 8. A GCC development may replace a Qatar development only when its Doha Bank transmission is stronger.
 9. Prefer developments from the last 7 days.
@@ -1399,7 +1452,7 @@ Candidate intelligence:
              and has_minimum_transmission_signal(x)
              and not is_doha_bank_self_news(x)
              and clean_text(x.get("link", ""))),
-            key=lambda x: x.get("relevance_score", 0), reverse=True,
+            key=geopolitical_rank, reverse=True,
         )
         global_item = next((x for x in global_candidates
             if x.get("link", "").split("?")[0].rstrip("/").lower() not in used_urls), None)
