@@ -129,17 +129,27 @@ Do not use trailing commas.
 If you detect a mistake, correct it internally and output only the final JSON object.
 """
 
-    response = client.messages.create(
-        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
-        max_tokens=max_tokens,
-        messages=[{"role": "user", "content": strict_prompt}]
+    # A reasoning response can consume the token allowance without producing
+    # any text. Retry with a larger allowance; fail with actionable diagnostics.
+    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+    for attempt, budget in enumerate((max(max_tokens, 8000), 16000), start=1):
+        response = client.messages.create(
+            model=model,
+            max_tokens=budget,
+            messages=[{"role": "user", "content": strict_prompt}],
+        )
+        blocks = [b.text.strip() for b in response.content
+                  if getattr(b, "type", None) == "text" and getattr(b, "text", "").strip()]
+        if blocks:
+            return "\n".join(blocks)
+        print(f"WARNING: Claude article attempt {attempt} returned no text; "
+              f"stop_reason={response.stop_reason!r}; "
+              f"content_types={[getattr(b, 'type', None) for b in response.content]}; "
+              f"max_tokens={budget}", flush=True)
+    raise ValueError(
+        "Claude returned only reasoning/no text after two attempts. "
+        "Try a non-thinking model via ANTHROPIC_MODEL or reduce the article prompt."
     )
-
-    for block in response.content:
-        if getattr(block, "type", None) == "text":
-            return block.text.strip()
-
-    raise ValueError("Claude returned no text block")
 
 
 def extract_json_object(text):
@@ -828,8 +838,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
 
     
 
