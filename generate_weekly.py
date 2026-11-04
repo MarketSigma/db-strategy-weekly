@@ -399,7 +399,7 @@ def public_data_stress_rows(metrics):
 
 def ai_write_article(topic, metrics, bank_name, impact_rules):
     formatted_metrics = format_metrics_for_ai(metrics)
-    stress_rows, stress_notes = public_data_stress_rows(metrics)
+    stress_rows, _stress_notes = public_data_stress_rows(metrics)
     scenario_guidance = """
 SPECIAL MANDATORY FORMAT — US/ISRAEL-IRAN ESCALATION SCENARIO:
 This is a forward-looking strategic stress assessment, NOT an incident recap.
@@ -407,7 +407,7 @@ Lead with the current geopolitical risk and its business significance, not a hyp
 Use the Reuters source only as the verified news trigger. Do not assert hypothetical attacks occurred.
 In doha_bank_impact, prioritize the central management assessment of renewed military escalation; mention limited versus prolonged conflict only when this materially changes the conclusion. Trace impacts through Qatar LNG exports and routes, oil/LNG prices, fiscal conditions, investor sentiment, banking-system liquidity and funding, corporate credit risk, trade finance, and treasury risk. State that higher energy prices may be beneficial to revenues while physical disruption may offset those gains. Explain what Doha Bank should monitor, without claiming bank-specific exposures absent data.
 The risk list must identify the most material Qatar/Doha Bank transmission channels, not focus on a tanker being hit. The strategic options must specify an accountable function, a measurable trigger and a 30-day deliverable: Treasury/ALM to verify actual refinancing and repricing ladders; Risk/Wholesale to quantify sector concentrations and early-warning indicators; Strategy/Treasury to monitor verified military developments, oil/LNG prices, shipping insurance and sovereign spreads. Never treat a speech or headline as verified mobilisation or an actual strike.
-Use the reproducible three-scenario public-data sensitivity table supplied below. Do not generate or quote numerical wholesale funding-cost shocks, repricing percentages, funding proxy amounts, or combined earnings-at-risk estimates. Discuss wholesale funding qualitatively only: actual refinancing and repricing maturities are not available in public disclosures. Do not present scenario severity as event likelihood. Distinguish starting balances, ending balances, and illustrative incremental credit impairment sensitivities. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. Explicitly state assumptions and data limitations. Distinguish verified news from modeled outcomes.
+Use the reproducible three-scenario public-data sensitivity table supplied below. Do not generate or quote numerical wholesale funding-cost shocks, repricing percentages, funding proxy amounts, or combined earnings-at-risk estimates. Discuss wholesale funding qualitatively only: actual refinancing and repricing maturities are not available in public disclosures. Do not present scenario severity as event likelihood. Distinguish starting balances, ending balances, and illustrative incremental credit impairment sensitivities. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. State assumptions briefly in the table row itself. Do not add a separate methodology or public-data stress-sensitivities paragraph. Distinguish verified news from modeled outcomes.
 """ if topic.get("scenario_assessment") else ""
 
     prompt = f"""
@@ -526,12 +526,6 @@ Strict financial data rules:
         # Never ask a language model to manufacture bank-specific numbers.
         # Deterministic projections supersede narrative/qualitative model rows.
         article["impact_table"] = stress_rows
-        disclosure = ("PUBLIC-DATA STRESS SENSITIVITIES (not a forecast): "
-                      + " ".join(stress_notes)
-                      + " Figures exclude behavioral deposit modeling, funding repricing, hedges, "
-                        "liquid-asset buffers and sector-specific exposures; they are not predicted losses.")
-        article["doha_bank_impact"] = (str(article.get("doha_bank_impact") or "").strip()
-                                      + "\n" + disclosure)
     elif topic.get("scenario_assessment"):
         # No reported baseline: do not manufacture numeric estimates.
         directional = {
@@ -816,6 +810,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
 
