@@ -326,67 +326,82 @@ def format_metrics_for_ai(metrics):
 
 
 def public_data_stress_rows(metrics):
-    """Reproducible PUBLIC-DATA sensitivities, not forecasts or regulatory stress results.
+    """Auditable scenario sensitivities from public balances; NOT forecasts.
 
-    No hidden bank exposure assumptions: shocks are applied to disclosed aggregate
-    balances and clearly labeled as proxies. Returns rows plus calculation notes.
+    All scenarios are conditional, uncalibrated shocks. Missing balances are
+    omitted, never estimated. The "Projected" column always means a closing
+    balance or incremental cost/loss as explicitly stated in the metric label.
     """
     latest = {}
-    for row in sorted(metrics, key=lambda r: str(r.get("period_end") or ""), reverse=True):
-        code = str(row.get("metric_code") or row.get("metric_name") or row.get("metric") or "").lower().strip()
-        if code and code not in latest:
-            latest[code] = row
+    for r in sorted(metrics, key=lambda x: str(x.get("period_end") or ""), reverse=True):
+        key = str(r.get("metric_code") or r.get("metric_name") or r.get("metric") or "").lower().strip()
+        if key and key not in latest:
+            latest[key] = r
 
-    def balance(*codes):
-        for code in codes:
-            r = latest.get(code)
+    def balance(*keys):
+        for key in keys:
+            r = latest.get(key)
             if not r:
                 continue
             try:
                 val = float(r["value"])
-            except (ValueError, TypeError, KeyError):
+            except (TypeError, ValueError, KeyError):
                 continue
             unit = str(r.get("unit") or "").lower().strip()
-            if unit in ("thousand", "thousands", "qar thousands", "qar '000", "qar000"):
-                val *= 1000
-            elif unit in ("million", "millions"):
-                val *= 1_000_000
-            elif unit in ("billion", "billions"):
-                val *= 1_000_000_000
-            elif unit not in ("qar", "qar units", "units", "", "currency"):
+            factors = {"thousand": 1e3, "thousands": 1e3, "qar thousands": 1e3,
+                       "qar '000": 1e3, "qar000": 1e3, "million": 1e6,
+                       "millions": 1e6, "billion": 1e9, "billions": 1e9,
+                       "qar": 1, "qar units": 1, "units": 1, "": 1, "currency": 1}
+            if unit not in factors:
                 continue
-            return val, str(r.get("period_end") or "undated")
+            return val * factors[unit], str(r.get("period_end") or "date not provided")
         return None, None
 
-    def money(v):
-        return f"QAR {v / 1e9:,.2f}bn" if abs(v) >= 1e9 else f"QAR {v / 1e6:,.1f}m"
+    def money(value):
+        return f"QAR {value / 1e9:,.2f}bn" if abs(value) >= 1e9 else f"QAR {value / 1e6:,.1f}m"
 
-    rows = []
-    notes = []
-    deposits, dp = balance("customer_deposits", "total_customer_deposits")
-    loans, lp = balance("net_loans", "net_customer_loans", "loans_and_advances")
-    # Explicit assumptions; these are scenario parameters, NOT estimated probabilities.
+    deposits, deposit_date = balance("customer_deposits", "total_customer_deposits")
+    loans, loan_date = balance("net_loans", "net_customer_loans", "loans_and_advances")
+    parts = [balance(k)[0] for k in ("due_to_banks", "debt_securities", "other_borrowings")]
+    funding = sum(parts) if all(v is not None for v in parts) else None
+    rows, notes = [], []
+    scenarios = (("Contained", 0.01, 25, 10),
+                 ("Elevated", 0.03, 50, 25),
+                 ("Severe", 0.05, 100, 50))
+    for name, outflow_rate, spread_bp, impairment_bp in scenarios:
+        if deposits is not None:
+            outflow = deposits * outflow_rate
+            rows.append({"metric": f"{name} | Customer deposits after outflow",
+                         "current_value": money(deposits),
+                         "projected_value": money(deposits - outflow),
+                         "change": f"-{money(outflow)} ({outflow_rate:.0%} 30-day assumed outflow); liquidity demand, not P&L"})
+        if funding is not None:
+            incremental = funding * spread_bp / 10000
+            rows.append({"metric": f"{name} | Incremental annual funding expense",
+                         "current_value": f"Funding base: {money(funding)}",
+                         "projected_value": money(incremental),
+                         "change": f"+{spread_bp}bp × full funding proxy for 12 months; excludes repricing offsets"})
+        if loans is not None:
+            impairment = loans * impairment_bp / 10000
+            rows.append({"metric": f"{name} | Incremental credit impairment sensitivity",
+                         "current_value": f"Net loan base: {money(loans)}",
+                         "projected_value": money(impairment),
+                         "change": f"+{impairment_bp}bp × net loans; simplified 12-month sensitivity, not PD/LGD"})
+        if funding is not None and loans is not None:
+            total = funding * spread_bp / 10000 + loans * impairment_bp / 10000
+            rows.append({"metric": f"{name} | Combined pre-tax earnings sensitivity",
+                         "current_value": "Incremental expense + impairment",
+                         "projected_value": f"-{money(total)}",
+                         "change": "Annualized, before tax, hedges, asset repricing, recoveries and other offsets; not forecast PBT"})
     if deposits is not None:
-        outflow = deposits * 0.05
-        rows.append({"metric":"Customer deposit liquidity demand (5% shock)",
-                     "current_value":money(deposits), "projected_value":money(outflow),
-                     "change":"5% × reported customer deposits; cash demand, not a P&L loss"})
-        notes.append(f"Deposits: {money(deposits)} as of {dp}; assumed 5% outflow over 30 days.")
+        notes.append(f"Reported customer deposits {money(deposits)} as of {deposit_date}; assumed 30-day outflows of 1% / 3% / 5%. Closing deposits = starting deposits less outflows.")
+    if funding is not None:
+        notes.append(f"Funding proxy {money(funding)} = due to banks + debt securities + other borrowings (latest disclosed observations); 25 / 50 / 100bp full-year repricing assumptions. This is NOT reported annual funding cost.")
+    else:
+        notes.append("Funding sensitivity unavailable: all three disclosed funding components are required; no estimate fabricated.")
     if loans is not None:
-        loss = loans * 0.005
-        rows.append({"metric":"Incremental credit impairment (50bp sensitivity)",
-                     "current_value":money(loans), "projected_value":money(loss),
-                     "change":"0.50% × reported net loans; simplified one-year loss sensitivity"})
-        notes.append(f"Net loans: {money(loans)} as of {lp}; assumed incremental impairment of 50bp of net loans. This is not a PD/LGD model.")
-    # A funding expense proxy only when the source explicitly contains funding balances.
-    funding_parts = [balance(k)[0] for k in ("due_to_banks", "debt_securities", "other_borrowings")]
-    if all(v is not None for v in funding_parts):
-        funding = sum(funding_parts)
-        expense = funding * 0.01
-        rows.append({"metric":"Annual funding cost (100bp sensitivity)",
-                     "current_value":money(funding), "projected_value":money(expense),
-                     "change":"1.00% × disclosed funding proxy; assumes full repricing for one year"})
-        notes.append("Funding proxy = due to banks + debt securities + other borrowings; assumes 100bp full-year repricing, before asset repricing or hedges.")
+        notes.append(f"Reported net loans {money(loans)} as of {loan_date}; incremental 10 / 25 / 50bp impairment assumptions, not modeled default probabilities.")
+    notes.append("Shock parameters are illustrative and NOT empirically calibrated probabilities or forecasts. No bank-specific deposit behavior, liquidity buffers, repricing ladder, sector exposures or hedges are publicly verified here. Confidence: high in correctly sourced disclosed balances; low in uncalibrated shocks and conditional results.")
     return rows, notes
 
 
@@ -400,7 +415,7 @@ Lead with the current geopolitical risk and its business significance, not a hyp
 Use the Reuters source only as the verified news trigger. Do not assert hypothetical attacks occurred.
 In doha_bank_impact, prioritize the central management assessment of renewed military escalation; mention limited versus prolonged conflict only when this materially changes the conclusion. Trace impacts through Qatar LNG exports and routes, oil/LNG prices, fiscal conditions, investor sentiment, banking-system liquidity and funding, corporate credit risk, trade finance, and treasury risk. State that higher energy prices may be beneficial to revenues while physical disruption may offset those gains. Explain what Doha Bank should monitor, without claiming bank-specific exposures absent data.
 The risk list must identify the most material Qatar/Doha Bank transmission channels, not focus on a tanker being hit. The strategic options must include concrete early-warning indicators, liquidity stress testing and sector-level credit exposure review.
-Use the reproducible quantitative public-data sensitivity table supplied below. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. Explicitly state assumptions and data limitations. Distinguish verified news from modeled outcomes.
+Use the reproducible three-scenario public-data sensitivity table supplied below. Distinguish starting balances, ending balances, funding bases, incremental annual expenses, and conditional earnings sensitivity. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. Explicitly state assumptions and data limitations. Distinguish verified news from modeled outcomes.
 """ if topic.get("scenario_assessment") else ""
 
     prompt = f"""
@@ -743,7 +758,7 @@ def build_final_email(topic, article):
       </tr>
       {rows}
     </table>
-    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Current figures, where shown, reflect reported data. Projected figures are transparent public-data stress sensitivities under stated assumptions, not forecasts, confirmed bank exposures or regulatory stress-test results.</p>
+    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Reported baselines and conditional outputs are explicitly labelled by row. Scenarios are illustrative sensitivities, not forecasts, probabilities, confirmed exposures or regulatory stress-test results.</p>
   </td></tr>
 
   <tr><td class="pad" style="padding:32px 44px 0 44px;">
