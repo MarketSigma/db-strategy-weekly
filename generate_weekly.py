@@ -325,8 +325,74 @@ def format_metrics_for_ai(metrics):
     return "\n".join(lines)
 
 
+def public_data_stress_rows(metrics):
+    """Reproducible PUBLIC-DATA sensitivities, not forecasts or regulatory stress results.
+
+    No hidden bank exposure assumptions: shocks are applied to disclosed aggregate
+    balances and clearly labeled as proxies. Returns rows plus calculation notes.
+    """
+    latest = {}
+    for row in sorted(metrics, key=lambda r: str(r.get("period_end") or ""), reverse=True):
+        code = str(row.get("metric_code") or row.get("metric_name") or row.get("metric") or "").lower().strip()
+        if code and code not in latest:
+            latest[code] = row
+
+    def balance(*codes):
+        for code in codes:
+            r = latest.get(code)
+            if not r:
+                continue
+            try:
+                val = float(r["value"])
+            except (ValueError, TypeError, KeyError):
+                continue
+            unit = str(r.get("unit") or "").lower().strip()
+            if unit in ("thousand", "thousands", "qar thousands", "qar '000", "qar000"):
+                val *= 1000
+            elif unit in ("million", "millions"):
+                val *= 1_000_000
+            elif unit in ("billion", "billions"):
+                val *= 1_000_000_000
+            elif unit not in ("qar", "qar units", "units", "", "currency"):
+                continue
+            return val, str(r.get("period_end") or "undated")
+        return None, None
+
+    def money(v):
+        return f"QAR {v / 1e9:,.2f}bn" if abs(v) >= 1e9 else f"QAR {v / 1e6:,.1f}m"
+
+    rows = []
+    notes = []
+    deposits, dp = balance("customer_deposits", "total_customer_deposits")
+    loans, lp = balance("net_loans", "net_customer_loans", "loans_and_advances")
+    # Explicit assumptions; these are scenario parameters, NOT estimated probabilities.
+    if deposits is not None:
+        outflow = deposits * 0.05
+        rows.append({"metric":"Customer deposit liquidity demand (5% shock)",
+                     "current_value":money(deposits), "projected_value":money(outflow),
+                     "change":"5% × reported customer deposits; cash demand, not a P&L loss"})
+        notes.append(f"Deposits: {money(deposits)} as of {dp}; assumed 5% outflow over 30 days.")
+    if loans is not None:
+        loss = loans * 0.005
+        rows.append({"metric":"Incremental credit impairment (50bp sensitivity)",
+                     "current_value":money(loans), "projected_value":money(loss),
+                     "change":"0.50% × reported net loans; simplified one-year loss sensitivity"})
+        notes.append(f"Net loans: {money(loans)} as of {lp}; assumed incremental impairment of 50bp of net loans. This is not a PD/LGD model.")
+    # A funding expense proxy only when the source explicitly contains funding balances.
+    funding_parts = [balance(k)[0] for k in ("due_to_banks", "debt_securities", "other_borrowings")]
+    if all(v is not None for v in funding_parts):
+        funding = sum(funding_parts)
+        expense = funding * 0.01
+        rows.append({"metric":"Annual funding cost (100bp sensitivity)",
+                     "current_value":money(funding), "projected_value":money(expense),
+                     "change":"1.00% × disclosed funding proxy; assumes full repricing for one year"})
+        notes.append("Funding proxy = due to banks + debt securities + other borrowings; assumes 100bp full-year repricing, before asset repricing or hedges.")
+    return rows, notes
+
+
 def ai_write_article(topic, metrics, bank_name, impact_rules):
     formatted_metrics = format_metrics_for_ai(metrics)
+    stress_rows, stress_notes = public_data_stress_rows(metrics)
     scenario_guidance = """
 SPECIAL MANDATORY FORMAT — US/ISRAEL-IRAN ESCALATION SCENARIO:
 This is a forward-looking strategic stress assessment, NOT an incident recap.
@@ -334,7 +400,7 @@ Lead with the current geopolitical risk and its business significance, not a hyp
 Use the Reuters source only as the verified news trigger. Do not assert hypothetical attacks occurred.
 In doha_bank_impact, prioritize the central management assessment of renewed military escalation; mention limited versus prolonged conflict only when this materially changes the conclusion. Trace impacts through Qatar LNG exports and routes, oil/LNG prices, fiscal conditions, investor sentiment, banking-system liquidity and funding, corporate credit risk, trade finance, and treasury risk. State that higher energy prices may be beneficial to revenues while physical disruption may offset those gains. Explain what Doha Bank should monitor, without claiming bank-specific exposures absent data.
 The risk list must identify the most material Qatar/Doha Bank transmission channels, not focus on a tanker being hit. The strategic options must include concrete early-warning indicators, liquidity stress testing and sector-level credit exposure review.
-Do not invent numerical scenario probabilities, losses, funding spreads, forecasts or bank exposures. For impact_table, ALWAYS populate projected_value with a concise, specific directional assessment (e.g. "Upward pressure", "Potential tightening", "Higher disruption risk") if a numeric projection cannot be evidenced. Use change for the mechanism or trigger, not a duplicate projection. Never invent numeric forecasts, probability or bank-specific exposure. Distinguish verified developments from forward-looking risk assessment without repetitive hypothetical disclaimers.
+Use the reproducible quantitative public-data sensitivity table supplied below. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. Explicitly state assumptions and data limitations. Distinguish verified news from modeled outcomes.
 """ if topic.get("scenario_assessment") else ""
 
     prompt = f"""
@@ -449,8 +515,18 @@ Strict financial data rules:
 
     text = ask_claude(prompt)
     article = sanitize_article(extract_json_object(text))
-    if topic.get("scenario_assessment"):
-        # The report must never show an empty projected column for relevant risk indicators.
+    if topic.get("scenario_assessment") and stress_rows:
+        # Never ask a language model to manufacture bank-specific numbers.
+        # Deterministic projections supersede narrative/qualitative model rows.
+        article["impact_table"] = stress_rows
+        disclosure = ("PUBLIC-DATA STRESS SENSITIVITIES (not a forecast): "
+                      + " ".join(stress_notes)
+                      + " Figures exclude behavioral deposit modeling, repricing offsets, hedges, "
+                        "liquid-asset buffers and sector-specific exposures; they are not predicted losses.")
+        article["doha_bank_impact"] = (str(article.get("doha_bank_impact") or "").strip()
+                                      + "\n" + disclosure)
+    elif topic.get("scenario_assessment"):
+        # No reported baseline: do not manufacture numeric estimates.
         directional = {
             "liquid": "Potential tightening",
             "fund": "Upward cost pressure",
@@ -667,7 +743,7 @@ def build_final_email(topic, article):
       </tr>
       {rows}
     </table>
-    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Current figures, where shown, reflect reported data. Projected impacts are directional management assessments unless an explicit numerical assumption is stated; they are not forecasts or confirmed bank exposures.</p>
+    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Current figures, where shown, reflect reported data. Projected figures are transparent public-data stress sensitivities under stated assumptions, not forecasts, confirmed bank exposures or regulatory stress-test results.</p>
   </td></tr>
 
   <tr><td class="pad" style="padding:32px 44px 0 44px;">
