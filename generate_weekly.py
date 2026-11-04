@@ -327,6 +327,15 @@ def format_metrics_for_ai(metrics):
 
 def ai_write_article(topic, metrics, bank_name, impact_rules):
     formatted_metrics = format_metrics_for_ai(metrics)
+    scenario_guidance = """
+SPECIAL MANDATORY FORMAT — US/ISRAEL-IRAN ESCALATION SCENARIO:
+This is a forward-looking strategic stress assessment, NOT an incident recap.
+Lead with: 'If the US and/or Israel conduct renewed military strikes against Iran, what could happen to Qatar and Doha Bank?'
+Use the Reuters source only as the verified news trigger. Do not assert hypothetical attacks occurred.
+In doha_bank_impact, explicitly distinguish three conditional scenarios: (1) limited strikes, (2) sustained escalation, (3) wider regional conflict. Trace impacts through Qatar LNG exports and routes, oil/LNG prices, fiscal conditions, investor sentiment, banking-system liquidity and funding, corporate credit risk, trade finance, and treasury risk. State that higher energy prices may be beneficial to revenues while physical disruption may offset those gains. Explain what Doha Bank should monitor, without claiming bank-specific exposures absent data.
+The risk list must identify the most material Qatar/Doha Bank transmission channels, not focus on a tanker being hit. The strategic options must include concrete early-warning indicators, liquidity stress testing and sector-level credit exposure review.
+Do not invent numerical scenario probabilities, losses, funding spreads, forecasts or bank exposures. For impact_table, if a numerical forecast is unsupported, use empty projected_value and a QUALITATIVE conditional change; never invent precision. Label all scenarios as hypothetical and distinguish them from reported facts.
+""" if topic.get("scenario_assessment") else ""
 
     prompt = f"""
 You are DB Strategy AI Analyst.
@@ -414,6 +423,7 @@ strategic_options:
 - Business owner must be a practical Doha Bank owner such as Treasury, Wholesale Banking, Retail Banking, Risk Management, Finance, Strategy, Operations, Digital Banking, Compliance, or ALM Committee.
 - Do not assign personal names.
 
+{scenario_guidance}
 Selected topic:
 {json.dumps(topic, ensure_ascii=False)}
 Source text rules:
@@ -693,6 +703,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
 
