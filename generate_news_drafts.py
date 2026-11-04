@@ -39,7 +39,7 @@ MUTED = "#8a99ad"
 # IMPORTANT:
 # - Qatar is the primary market.
 # - GCC is secondary and must have a credible Qatar / Doha Bank channel.
-# - Global items are exceptional; there is NO global quota.
+# - Reserve one slot for a verified global development with a credible Qatar banking transmission.
 # - Google News RSS is used for targeted discovery because many official
 #   and local sites do not expose stable RSS feeds.
 
@@ -106,12 +106,19 @@ STRATEGIC_SEARCHES = [
     ("GCC", 'GCC project finance trade finance Qatar'),
     ("GCC", 'GCC banking regulation capital liquidity Qatar'),
 
-    # Global — exceptional only
+    # Global financial and geopolitical shocks with Qatar banking transmission
     ("Global", 'global banking Basel capital liquidity major change'),
     ("Global", 'global cross-border payments SWIFT major change'),
     ("Global", 'global banks tokenized deposits stablecoin major launch'),
     ("Global", 'major central bank rate decision GCC Qatar banks'),
     ("Global", 'global banking cyber disruption payments major banks'),
+    ("Global", 'US Iran military escalation Strait of Hormuz oil LNG shipping insurance'),
+    ("Global", 'Iran Israel conflict Gulf shipping energy market disruption'),
+    ("Global", 'Red Sea shipping disruption freight insurance trade finance'),
+    ("Global", 'global oil LNG supply shock Qatar exports markets'),
+    ("Global", 'US Federal Reserve interest rates dollar Gulf bank funding'),
+    ("Global", 'global sanctions banking correspondent payments trade finance'),
+    ("Global", 'global financial market volatility emerging market funding liquidity'),
 ]
 
 DEFAULT_RSS_SOURCES = [
@@ -288,6 +295,19 @@ COMMERCIAL_TERMS = [
     "new service",
 ]
 
+GEOPOLITICAL_SHOCK_TERMS = [
+    "iran", "strait of hormuz", "red sea", "military escalation", "airstrikes",
+    "missile attack", "shipping disruption", "shipping routes", "sanctions",
+    "regional conflict", "oil supply", "lng supply", "energy supply",
+    "war", "geopolitical", "trade disruption", "blockade",
+]
+GEOPOLITICAL_TRANSMISSION_TERMS = [
+    "oil", "lng", "gas", "energy", "shipping", "tanker", "freight",
+    "insurance", "trade", "supply", "market", "price", "export",
+    "funding", "liquidity", "bank", "financial", "qatar", "gulf",
+    "hormuz", "sanctions", "aviation", "port", "currency",
+]
+
 GLOBAL_SIGNIFICANCE_TERMS = [
     "stablecoin",
     "tokenized deposit",
@@ -304,6 +324,8 @@ GLOBAL_SIGNIFICANCE_TERMS = [
     "interest rate decision",
     "systemic",
     "global banks",
+    "strait of hormuz", "shipping disruption", "oil supply", "lng supply",
+    "sanctions", "military escalation", "geopolitical", "energy supply",
 ]
 
 LOW_VALUE_TERMS = [
@@ -699,7 +721,7 @@ def relevance_score(item):
 
     # Global stories start with a penalty and need exceptional materiality.
     if geography == "Global":
-        score -= 25
+        score -= 10
         global_hits = sum(
             1 for term in GLOBAL_SIGNIFICANCE_TERMS if term in combined
         )
@@ -762,7 +784,15 @@ def has_minimum_transmission_signal(item):
             )
         )
 
-    # GCC/global stories need an explicit financial/banking transmission signal.
+    # A verified geopolitical shock can transmit through energy, shipping,
+    # insurance or trade even if the headline does not explicitly say "bank".
+    if item.get("geography") == "Global" and (
+        contains_any(combined, GEOPOLITICAL_SHOCK_TERMS)
+        and contains_any(combined, GEOPOLITICAL_TRANSMISSION_TERMS)
+    ):
+        return True
+
+    # Other GCC/global stories need an explicit financial/banking signal.
     return (
         contains_any(combined, FINANCIAL_TRANSMISSION_TERMS)
         and contains_any(combined, BANKING_TERMS + GLOBAL_SIGNIFICANCE_TERMS)
@@ -1072,7 +1102,7 @@ def build_selection_pool(news_items):
         + qatar_competitors[:5]
         + qatar_other[:4]
         + gcc_items[:6]
-        + global_items[:3]
+        + global_items[:10]
     )
 
     seen = set()
@@ -1096,7 +1126,11 @@ def build_selection_pool(news_items):
         reverse=True,
     )
 
-    return diversified[:30]
+    # Preserve global visibility despite the Qatar-first ordering.
+    shortlisted = diversified[:30]
+    if global_items and not any(x.get("geography") == "Global" for x in shortlisted):
+        shortlisted[-1] = global_items[0]
+    return shortlisted
 
 
 def ai_select_topics(news_items, bank_name):
@@ -1144,8 +1178,8 @@ MANDATORY SELECTION RULES:
 3. Prefer Qatar-specific external developments when material, but never sacrifice materiality or diversity merely to fill a Qatar quota.
 4. There is NO required quota for competitor stories.
 5. There is NO required quota for GCC stories.
-6. There is NO required quota for global stories.
-7. A global development should be selected only if it is exceptionally material and has a stronger, clearer transmission channel to Doha Bank than the available Qatar/GCC alternatives.
+6. Select AT LEAST ONE verified Global development among the six, provided an eligible global candidate exists. Prefer material geopolitical, energy, trade, monetary or financial shocks.
+7. Explain the concrete Qatar-to-Doha-Bank transmission for that global development; separate observed facts from conditional bank impacts.
 8. A GCC development may replace a Qatar development only when its Doha Bank transmission is stronger.
 9. Prefer developments from the last 7 days.
 10. Prefer developments affecting Qatar lending, deposits, funding, liquidity, margins, fees, payments, trade finance, project finance, asset quality, capital, client activity or competitive positioning.
@@ -1226,7 +1260,7 @@ Candidate intelligence:
             print(f"WARNING: Claude retry also failed: {retry_error}")
             print("Using deterministic Qatar-first selection from real candidates.")
 
-            # Deterministic backup: take best real items, Qatar first.
+            # Deterministic backup: take best real items, then enforce global slot.
             backup = sorted(
                 selection_pool,
                 key=lambda x: (
@@ -1342,6 +1376,55 @@ Candidate intelligence:
             f"Claude returned only {len(valid)} usable real topics. "
             "No fallback articles were generated."
         )
+
+    # Deterministic final safeguard: Claude may ignore the global instruction.
+    # Only insert an actual discovered, filtered and sourced story. Never invent news.
+    if not any(t.get("geography") == "Global" for t in valid):
+        global_candidates = sorted(
+            (x for x in selection_pool if x.get("geography") == "Global"
+             and has_minimum_transmission_signal(x)
+             and not is_doha_bank_self_news(x)
+             and clean_text(x.get("link", ""))),
+            key=lambda x: x.get("relevance_score", 0), reverse=True,
+        )
+        if not global_candidates:
+            raise ValueError(
+                "No eligible verified global article found. Cannot guarantee a "
+                "global article without inventing a source; expand news sources "
+                "or the search window and rerun."
+            )
+        global_item = next((x for x in global_candidates
+            if x.get("link", "").split("?")[0].rstrip("/").lower() not in used_urls), None)
+        if global_item is None:
+            raise ValueError("No unused eligible global source remains")
+        replacement = {
+            "source_url": global_item["link"],
+            "category": "Strategic Threat / Disruption",
+            "why_it_matters": "Global development with a plausible transmission to Qatar's economy and banking sector.",
+            "potential_doha_bank_angle": "Assess conditional effects on funding, liquidity, clients, trade finance and asset quality; confirm actual exposures internally.",
+            "what_is_new": clean_text(global_item.get("title", "")),
+            "named_rival_or_actor": "",
+            "target_client_or_market": "Qatar corporate clients and financial markets",
+            "revenue_pool": "Funding, lending, trade finance, treasury and fees, where relevant.",
+            "recommended_strategy_test": "Validate affected sectors and bank exposures; distinguish observed facts from hypothetical scenarios.",
+            "transmission_channel_to_doha_bank": "Potential indirect effects through energy, trade, liquidity, rates or client cash flows; not a confirmed bank impact.",
+            "transmission_strength": "INDIRECT",
+            "topic_id": str(len(valid)),
+            "title": clean_text(global_item.get("title", "")),
+            "source_title": clean_text(global_item.get("title", "")),
+            "source_name": clean_text(global_item.get("source", "News source")),
+            "source_date": clean_text(global_item.get("source_date", "")) or TODAY,
+            "source_excerpt": article_excerpt(global_item.get("summary") or global_item.get("title")),
+            "geography": "Global",
+            "relevance_score": global_item.get("relevance_score", 0),
+        }
+        # Replace the lowest-ranked non-global story, retaining six articles.
+        replace_idx = min(range(len(valid)), key=lambda i: valid[i].get("relevance_score", 0))
+        valid[replace_idx] = replacement
+        print(f"GLOBAL SLOT ENFORCED | {replacement['title']}")
+
+    for i, topic in enumerate(valid, 1):
+        topic["topic_id"] = str(i)
 
     print(
         "FINAL TOPIC MIX | "
@@ -1598,5 +1681,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
