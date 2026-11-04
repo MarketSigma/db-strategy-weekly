@@ -33,10 +33,10 @@ PAGE_BG = "#ece9e2"     # warm page background
 # Host the approved Doha Bank logo on a public HTTPS URL (for example,
 # a raw GitHub asset URL) and store it in GitHub Actions as DB_LOGO_URL.
 # Email clients cannot load a logo directly from the repository filesystem.
-LOGO_URL = os.getenv(
-    "DB_LOGO_URL",
-    "https://raw.githubusercontent.com/REPLACE_WITH_OWNER/REPLACE_WITH_REPO/main/assets/doha-bank-logo.png"
-)
+LOGO_URL = os.getenv("DB_LOGO_URL", "").strip()
+# Do not emit a known broken placeholder URL into executive emails.
+if "REPLACE_WITH_" in LOGO_URL:
+    LOGO_URL = ""
 
 METRIC_LABELS = {
     "customer_deposits": "Customer Deposits",
@@ -365,43 +365,47 @@ def public_data_stress_rows(metrics):
     parts = [balance(k)[0] for k in ("due_to_banks", "debt_securities", "other_borrowings")]
     funding = sum(parts) if all(v is not None for v in parts) else None
     rows, notes = [], []
-    scenarios = (("Contained", 0.01, 25, 10),
-                 ("Elevated", 0.03, 50, 25),
-                 ("Severe", 0.05, 100, 50))
-    for name, outflow_rate, spread_bp, impairment_bp in scenarios:
+    # Public data do not reveal the contractual repricing ladder. The 50%
+    # repricing share below is an explicitly illustrative modelling parameter;
+    # the full-repricing result is disclosed as a separate upper sensitivity.
+    scenarios = (("Contained", .01, 25, 10, .25),
+                 ("Elevated", .03, 50, 25, .50),
+                 ("Severe", .05, 100, 50, .75))
+    for name, outflow_rate, spread_bp, impairment_bp, repricing_share in scenarios:
         if deposits is not None:
             outflow = deposits * outflow_rate
-            rows.append({"metric": f"{name} | Customer deposits after outflow",
+            rows.append({"metric": f"{name} | Customer deposits after assumed outflow",
                          "current_value": money(deposits),
                          "projected_value": money(deposits - outflow),
-                         "change": f"-{money(outflow)} ({outflow_rate:.0%} 30-day assumed outflow); liquidity demand, not P&L"})
+                         "change": f"-{money(outflow)} ({outflow_rate:.0%} 30-day shock); liquidity demand, not earnings loss"})
         if funding is not None:
-            incremental = funding * spread_bp / 10000
-            rows.append({"metric": f"{name} | Incremental annual funding expense",
-                         "current_value": f"Funding base: {money(funding)}",
+            incremental = funding * spread_bp / 10000 * repricing_share
+            full = funding * spread_bp / 10000
+            rows.append({"metric": f"{name} | Incremental annual funding expense (sensitivity)",
+                         "current_value": f"Funding proxy: {money(funding)}",
                          "projected_value": money(incremental),
-                         "change": f"+{spread_bp}bp × full funding proxy for 12 months; excludes repricing offsets"})
+                         "change": f"+{spread_bp}bp x {repricing_share:.0%} repricing; full-base upper sensitivity {money(full)}"})
         if loans is not None:
             impairment = loans * impairment_bp / 10000
-            rows.append({"metric": f"{name} | Incremental credit impairment sensitivity",
-                         "current_value": f"Net loan base: {money(loans)}",
+            rows.append({"metric": f"{name} | Incremental credit impairment (sensitivity)",
+                         "current_value": f"Net loan proxy: {money(loans)}",
                          "projected_value": money(impairment),
-                         "change": f"+{impairment_bp}bp × net loans; simplified 12-month sensitivity, not PD/LGD"})
+                         "change": f"+{impairment_bp}bp on all net loans; uncalibrated, NOT expected credit loss"})
         if funding is not None and loans is not None:
-            total = funding * spread_bp / 10000 + loans * impairment_bp / 10000
-            rows.append({"metric": f"{name} | Combined pre-tax earnings sensitivity",
-                         "current_value": "Incremental expense + impairment",
+            total = funding * spread_bp / 10000 * repricing_share + loans * impairment_bp / 10000
+            rows.append({"metric": f"{name} | Combined annualized pre-tax expense sensitivity",
+                         "current_value": "Funding + incremental impairment",
                          "projected_value": f"-{money(total)}",
-                         "change": "Annualized, before tax, hedges, asset repricing, recoveries and other offsets; not forecast PBT"})
+                         "change": "Before asset repricing, hedges, recoveries, tax or other offsets; NOT a profit forecast"})
     if deposits is not None:
-        notes.append(f"Reported customer deposits {money(deposits)} as of {deposit_date}; assumed 30-day outflows of 1% / 3% / 5%. Closing deposits = starting deposits less outflows.")
+        notes.append(f"Customer deposits {money(deposits)} as of {deposit_date}; 30-day 1% / 3% / 5% withdrawal shocks; closing deposits = opening deposits minus outflow. Liquidity buffers not modeled.")
     if funding is not None:
-        notes.append(f"Funding proxy {money(funding)} = due to banks + debt securities + other borrowings (latest disclosed observations); 25 / 50 / 100bp full-year repricing assumptions. This is NOT reported annual funding cost.")
+        notes.append(f"Funding proxy {money(funding)} = due to banks + debt securities + other borrowings, from latest available disclosed observations. Annualized 25 / 50 / 100bp spread shocks with illustrative 25% / 50% / 75% repricing shares. Full-base 100% sensitivity is NOT the central case. The proxy is not annual funding cost.")
     else:
-        notes.append("Funding sensitivity unavailable: all three disclosed funding components are required; no estimate fabricated.")
+        notes.append("Funding expense sensitivity omitted: all three funding components must be available; no figure fabricated.")
     if loans is not None:
-        notes.append(f"Reported net loans {money(loans)} as of {loan_date}; incremental 10 / 25 / 50bp impairment assumptions, not modeled default probabilities.")
-    notes.append("Shock parameters are illustrative and NOT empirically calibrated probabilities or forecasts. No bank-specific deposit behavior, liquidity buffers, repricing ladder, sector exposures or hedges are publicly verified here. Confidence: high in correctly sourced disclosed balances; low in uncalibrated shocks and conditional results.")
+        notes.append(f"Net loan proxy {money(loans)} as of {loan_date}; illustrative additional impairment shocks of 10 / 25 / 50bp on net loans, not PD/LGD or sector-specific ECL estimates.")
+    notes.append("CONFIDENCE: reported baselines high only when source and period are verified; arithmetic high; assumptions and inferred bank outcomes low. Scenarios are NOT forecasts, probabilities, actual exposure estimates or regulatory stress tests. Different disclosure dates can make aggregated funding proxies non-contemporaneous.")
     return rows, notes
 
 
@@ -414,8 +418,8 @@ This is a forward-looking strategic stress assessment, NOT an incident recap.
 Lead with the current geopolitical risk and its business significance, not a hypothetical question. Frame renewed US/Israeli strikes on Iran as a material escalation scenario requiring readiness, without asserting the strikes are imminent or more likely than not unless the cited Reuters report explicitly supports that conclusion.
 Use the Reuters source only as the verified news trigger. Do not assert hypothetical attacks occurred.
 In doha_bank_impact, prioritize the central management assessment of renewed military escalation; mention limited versus prolonged conflict only when this materially changes the conclusion. Trace impacts through Qatar LNG exports and routes, oil/LNG prices, fiscal conditions, investor sentiment, banking-system liquidity and funding, corporate credit risk, trade finance, and treasury risk. State that higher energy prices may be beneficial to revenues while physical disruption may offset those gains. Explain what Doha Bank should monitor, without claiming bank-specific exposures absent data.
-The risk list must identify the most material Qatar/Doha Bank transmission channels, not focus on a tanker being hit. The strategic options must include concrete early-warning indicators, liquidity stress testing and sector-level credit exposure review.
-Use the reproducible three-scenario public-data sensitivity table supplied below. Distinguish starting balances, ending balances, funding bases, incremental annual expenses, and conditional earnings sensitivity. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. Explicitly state assumptions and data limitations. Distinguish verified news from modeled outcomes.
+The risk list must identify the most material Qatar/Doha Bank transmission channels, not focus on a tanker being hit. The strategic options must specify an accountable function, a measurable trigger and a 30-day deliverable: Treasury/ALM to verify actual refinancing and repricing ladders; Risk/Wholesale to quantify sector concentrations and early-warning indicators; Strategy/Treasury to monitor verified military developments, oil/LNG prices, shipping insurance and sovereign spreads. Never treat a speech or headline as verified mobilisation or an actual strike.
+Use the reproducible three-scenario public-data sensitivity table supplied below. The funding model uses different explicitly assumed repricing shares, not 100% repricing in every scenario. Do not present scenario severity as event likelihood. Distinguish starting balances, ending balances, funding bases, incremental annual expenses, and conditional earnings sensitivity. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. Explicitly state assumptions and data limitations. Distinguish verified news from modeled outcomes.
 """ if topic.get("scenario_assessment") else ""
 
     prompt = f"""
@@ -676,6 +680,10 @@ def build_final_email(topic, article):
             f'font-size:0; line-height:0;">&nbsp;</div>'
         )
 
+    logo_markup = (f'<img src="{html.escape(LOGO_URL, quote=True)}" width="180" alt="Doha Bank" '
+                   'style="display:block; width:180px; height:auto; border:0;">'
+                   if LOGO_URL.startswith("https://") else
+                   f'<span style="font-family:Arial,sans-serif; font-size:20px; font-weight:bold; color:{NAVY};">DOHA BANK</span>')
     return f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -711,7 +719,7 @@ def build_final_email(topic, article):
       <td valign="middle">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
           <tr><td>
-            <img src="{LOGO_URL}" width="180" alt="Doha Bank" style="display:block; width:180px; height:auto; border:0; outline:none; text-decoration:none;">
+            {logo_markup}
           </td></tr>
         </table>
       </td>
@@ -743,17 +751,17 @@ def build_final_email(topic, article):
   </td></tr>
 
   <tr><td class="pad" style="padding:32px 44px 0 44px;">
-    {section_label("What it means for Doha Bank")}
+    {section_label("Executive impact assessment — Doha Bank")}
     {impact_paras}
   </td></tr>
 
   <tr><td class="pad" style="padding:30px 44px 0 44px;">
-    {section_label("Projected impact on key metrics")}
+    {section_label("Illustrative financial stress sensitivities — not forecasts")}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {LINE}; border-collapse:collapse;">
       <tr>
         <td style="padding:12px 16px; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Metric</td>
         <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Current</td>
-        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Projected</td>
+        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Stressed value / cost</td>
         <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Change</td>
       </tr>
       {rows}
