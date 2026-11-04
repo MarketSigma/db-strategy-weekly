@@ -360,10 +360,25 @@ def is_priority_geopolitical(item):
     return (contains_any(title, GEOPOLITICAL_HEADLINE_TERMS)
             and contains_any(title + " " + summary, GEOPOLITICAL_EVENT_TERMS))
 
+def is_us_iran_escalation_context(item):
+    """Identify a geopolitical trigger, not an isolated shipping incident."""
+    text = (clean_text(item.get("title", "")) + " " + clean_text(item.get("summary", ""))).lower()
+    iran = "iran" in text or "tehran" in text
+    actors = any(x in text for x in ("trump", "israel", "united states", "u.s.", "us-iran", "us iran", "washington"))
+    escalation = any(x in text for x in ("war", "strike", "attack", "military", "escalat", "conflict", "tension", "sanction", "threat", "nuclear"))
+    return iran and actors and escalation
+
+
+def is_incident_only(item):
+    title = clean_text(item.get("title", "")).lower()
+    return any(x in title for x in ("tanker hit", "tanker struck", "ship hit", "vessel attacked", "tanker attacked")) and not is_us_iran_escalation_context(item)
+
 def geopolitical_rank(item):
     source = clean_text(item.get("source", "")).lower()
     title = clean_text(item.get("title", "")).lower()
     return (
+        1 if is_us_iran_escalation_context(item) else 0,
+        0 if is_incident_only(item) else 1,
         1 if is_priority_geopolitical(item) else 0,
         1 if "reuters" in source or "reuters" in title else 0,
         item.get("relevance_score", 0),
@@ -1242,8 +1257,8 @@ MANDATORY SELECTION RULES:
 3. Prefer Qatar-specific external developments when material, but never sacrifice materiality or diversity merely to fill a Qatar quota.
 4. There is NO required quota for competitor stories.
 5. There is NO required quota for GCC stories.
-6. Select AT LEAST ONE verified Global development among the six, provided an eligible global candidate exists. PRIORITIZE Reuters coverage of US-Iran war/escalation, Trump policy, US election outcomes, sanctions and Hormuz security over generic banking technology news. Do not treat a hypothetical conflict as confirmed.
-7. Explain the concrete Qatar-to-Doha-Bank transmission for that global development; separate observed facts from conditional bank impacts.
+6. Select AT LEAST ONE verified Global development among the six, provided an eligible global candidate exists. PRIORITIZE Reuters coverage of US/Israel decisions about potential renewed strikes on Iran, US-Iran war risks, Trump foreign policy and US election developments. Prefer strategic escalation signals over incident-specific tanker or vessel stories. Do not treat hypothetical strikes as confirmed.
+7. For a US-Iran escalation story, frame the article as a FORWARD-LOOKING SCENARIO: What if the US and/or Israel strike Iran again? Evaluate limited strikes, sustained escalation and wider regional conflict. Assess Qatar LNG exports, shipping, energy revenue, sovereign finances, corporate borrowers, deposits, funding/liquidity, treasury and Doha Bank watchpoints. The triggering Reuters article supplies VERIFIED CONTEXT, not proof that a hypothetical war has occurred. Do not center the article on a tanker incident. Separate observed facts, conditional assumptions and potential bank impacts.
 8. A GCC development may replace a Qatar development only when its Doha Bank transmission is stronger.
 9. Prefer developments from the last 7 days.
 10. Prefer developments affecting Qatar lending, deposits, funding, liquidity, margins, fees, payments, trade finance, project finance, asset quality, capital, client activity or competitive positioning.
@@ -1426,6 +1441,7 @@ Candidate intelligence:
         used_urls.add(url_key)
 
         t["topic_id"] = str(len(valid) + 1)
+        t["scenario_assessment"] = is_us_iran_escalation_context(matched)
         t["title"] = clean_text(matched.get("title", ""))
         t["source_title"] = clean_text(matched.get("title", ""))
         t["source_name"] = clean_text(matched.get("source", "News source"))
@@ -1461,6 +1477,7 @@ Candidate intelligence:
         else:
             replacement = {
             "source_url": global_item["link"],
+            "scenario_assessment": is_us_iran_escalation_context(global_item),
             "category": "Strategic Threat / Disruption",
             "why_it_matters": "Global development with a plausible transmission to Qatar's economy and banking sector.",
             "potential_doha_bank_angle": "Assess conditional effects on funding, liquidity, clients, trade finance and asset quality; confirm actual exposures internally.",
