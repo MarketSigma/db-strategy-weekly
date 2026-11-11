@@ -397,77 +397,9 @@ def public_data_stress_rows(metrics):
     return rows, notes
 
 
-def numeric_topic_sensitivities(topic, metrics):
-    """Optional arithmetic illustrations, not predictions or estimated deal wins.
-
-    Only use a disclosed baseline and a topic-relevant balance. Never imply
-    that an arbitrary 1% sensitivity is the expected result of a news story.
-    """
-    content = " ".join(str(topic.get(k) or "") for k in (
-        "source_title", "source_description", "source_excerpt", "category",
-        "why_it_matters", "potential_doha_bank_angle", "target_client_or_market",
-        "transmission_channel_to_doha_bank" )).lower()
-    if not content.strip():
-        return []
-
-    # Use balances, not earnings: a percentage of profit or funding costs is
-    # especially easy to mistake for an unsupported management forecast.
-    deposit_terms = ("deposit", "liquidity", "savings", "current account", "casa")
-    loan_terms = ("financ", "lending", "loan", "credit", "project", "investment",
-                  "infrastructure", "construction", "real estate", "sme", "corporate")
-    selected = []
-    if any(word in content for word in deposit_terms):
-        selected.append(("customer_deposits", "Customer deposits", "deposit base"))
-    if any(word in content for word in loan_terms):
-        selected.append(("net_loans", "Net loans", "loan book"))
-    if not selected:
-        return []
-
-    latest = {}
-    for r in sorted(metrics, key=lambda x: str(x.get("period_end") or ""), reverse=True):
-        code = str(r.get("metric_code") or "").strip().lower()
-        if code and code not in latest:
-            latest[code] = r
-
-    factors = {"thousand": 1e3, "thousands": 1e3, "qar thousands": 1e3,
-               "qar '000": 1e3, "qar000": 1e3, "million": 1e6,
-               "millions": 1e6, "billion": 1e9, "billions": 1e9,
-               "qar": 1, "qar units": 1, "units": 1, "": 1, "currency": 1}
-    def fmt(v):
-        return f"QAR {v / 1e9:,.2f}bn" if abs(v) >= 1e9 else f"QAR {v / 1e6:,.1f}m"
-
-    rows = []
-    for code, label, base in selected[:2]:
-        r = latest.get(code)
-        if not r:
-            continue
-        unit = str(r.get("unit") or "").strip().lower()
-        if unit not in factors:
-            continue
-        try:
-            amount = float(r["value"]) * factors[unit]
-        except (ValueError, TypeError, KeyError):
-            continue
-        if amount <= 0:
-            continue
-        date = str(r.get("period_end") or "undated")
-        # Two *conditional* balance sensitivities, not a projected change from
-        # the specific headline. Explicitly label both the shock and date.
-        for pct in (0.01, 0.03):
-            rows.append({
-                "metric": f"{label} | illustrative +{pct:.0%} sensitivity",
-                "current_value": fmt(amount),
-                "projected_value": fmt(amount * (1 + pct)),
-                "change": (f"Assumed +{pct:.0%} change in {base} from {date} "
-                           "reported baseline; illustrative only, not a forecast or secured business."),
-            })
-    return rows
-
-
 def ai_write_article(topic, metrics, bank_name, impact_rules):
     formatted_metrics = format_metrics_for_ai(metrics)
     stress_rows, _stress_notes = public_data_stress_rows(metrics)
-    topic_sensitivity_rows = numeric_topic_sensitivities(topic, metrics) if not topic.get("scenario_assessment") else []
     scenario_guidance = """
 SPECIAL MANDATORY FORMAT — US/ISRAEL-IRAN ESCALATION SCENARIO:
 This is a forward-looking strategic stress assessment, NOT an incident recap.
@@ -546,7 +478,6 @@ impact_table:
 - Only include metrics this development materially moves.
 - current_value = latest reported value from Supabase only.
 - projected_value = defensible numeric estimate ONLY if supported by source data and explicit assumptions; otherwise a concise qualitative directional impact. Never blank for a material risk metric.
-- For non-geopolitical articles, the Python renderer may substitute explicitly labelled +1% and +3% balance sensitivities when a topic-relevant reported baseline exists. These are conditional illustrations, NOT predicted outcomes, won mandates, or expected growth. Never call them forecasts.
 - change = short explanation of the transmission mechanism or expected movement, not an unsupported numeric change.
 - Do not include a metric if the development does not plausibly move it.
 - The metric field must contain only clean business labels, never snake_case database codes.
@@ -595,10 +526,6 @@ Strict financial data rules:
         # Never ask a language model to manufacture bank-specific numbers.
         # Deterministic projections supersede narrative/qualitative model rows.
         article["impact_table"] = stress_rows
-    elif not topic.get("scenario_assessment") and topic_sensitivity_rows:
-        # Consistent, reproducible numeric illustrations for relevant articles.
-        # Do not convert a headline into an unsupported bank-specific forecast.
-        article["impact_table"] = topic_sensitivity_rows
     elif topic.get("scenario_assessment"):
         # No reported baseline: do not manufacture numeric estimates.
         directional = {
@@ -811,12 +738,12 @@ def build_final_email(topic, article):
   </td></tr>
 
   <tr><td class="pad" style="padding:30px 44px 0 44px;">
-    {section_label("Projected impact on key metrics — illustrative sensitivities")}
+    {section_label("Illustrative deposit and credit sensitivities — not forecasts")}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {LINE}; border-collapse:collapse;">
       <tr>
         <td style="padding:12px 16px; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Metric</td>
         <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Current</td>
-        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Illustrative value</td>
+        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Illustrative stressed value</td>
         <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Change</td>
       </tr>
       {rows}
