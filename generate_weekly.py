@@ -397,6 +397,24 @@ def public_data_stress_rows(metrics):
     return rows, notes
 
 
+def validate_regular_projections(article):
+    """Keep only numeric, explained estimates; never turn commentary into a forecast."""
+    numeric = re.compile(r"(?:\d[\d,]*(?:\.\d+)?\s*(?:%|bp|bps|bn|m|million|billion|x)\b?|QAR\s*\d)", re.I)
+    rows = []
+    for row in article.get("impact_table", []):
+        if not isinstance(row, dict):
+            continue
+        projected = str(row.get("projected_value") or "").strip()
+        change = str(row.get("change") or "").strip()
+        current = str(row.get("current_value") or "").strip()
+        # A numerical estimate requires a reported baseline and a short, explicit
+        # calculation basis. No unsupported figures are silently manufactured.
+        if numeric.search(projected) and numeric.search(current) and change:
+            rows.append(row)
+    article["impact_table"] = rows[:5]
+    return article
+
+
 def ai_write_article(topic, metrics, bank_name, impact_rules):
     formatted_metrics = format_metrics_for_ai(metrics)
     stress_rows, _stress_notes = public_data_stress_rows(metrics)
@@ -446,7 +464,7 @@ Use this EXACT JSON structure:
 Global rules:
 - Do NOT invent financial numbers.
 - Only use Doha Bank figures present in the Supabase data below.
-- If a reported current metric or prior period is missing, use an empty string "" for that CURRENT value only. Do not leave projected_value blank for a relevant risk metric: use a qualitative directional assessment.
+- If a reported current metric is missing, do not fabricate it. For regular articles, omit that metric from the projection table.
 - Never write "not available".
 - Never display raw database metric codes such as customer_deposits, net_loans, loan_deposit_ratio_pct, total_assets, net_profit, cost_income_ratio_pct, or capital_adequacy_ratio_pct.
 - Always use clean business metric labels such as Customer Deposits, Net Loans, Loan-to-Deposit Ratio, Total Assets, Net Profit, Cost-to-Income Ratio, and Capital Adequacy Ratio.
@@ -477,7 +495,11 @@ impact_table:
 - 2 to 5 rows.
 - Only include metrics this development materially moves.
 - current_value = latest reported value from Supabase only.
-- projected_value = defensible numeric estimate ONLY if supported by source data and explicit assumptions; otherwise a concise qualitative directional impact. Never blank for a material risk metric.
+- For REGULAR (non-scenario) articles: projected_value MUST be a numeric event-specific projected RANGE (e.g. "QAR 51.0bn–51.5bn"), like the original executive report, never descriptive text or generic +1%/+3% sensitivities.
+- Use the reported Doha Bank baseline and a reasoned event-specific estimate of the likely range; the Change column should explain the business driver and indicative magnitude in concise executive prose. Clearly label model-based estimates rather than reported facts.
+- Do not claim a competitor's deal, project value, or total market opportunity as Doha Bank's expected revenue or loans. Do not assume a win, mandate, market share, growth rate or probability without supporting evidence.
+- If a numerical range cannot be reasonably supported by the available source and baseline, omit that metric; never disguise an unsupported number as a verified forecast.
+- For the single geopolitical scenario article, follow the special stress-table instructions below instead.
 - change = short explanation of the transmission mechanism or expected movement, not an unsupported numeric change.
 - Do not include a metric if the development does not plausibly move it.
 - The metric field must contain only clean business labels, never snake_case database codes.
@@ -516,7 +538,7 @@ Strict financial data rules:
 - Values are already converted into QAR bn, QAR m, %, or ratio format.
 - Do not write values in "k" or "thousands".
 - Do not re-scale or re-convert the figures.
-- If you calculate a numeric projected_value, base it on a reported current value and explicitly stated defensible assumptions; otherwise give a directional qualitative assessment.
+- For regular articles, use numeric projected ranges, consistent with the original executive report. Explain event-specific drivers in Change. Omit unsupported rows; do not use generic sensitivity percentages.
 - If the required current metric is not listed above, leave current_value as "".
 """
 
@@ -526,6 +548,8 @@ Strict financial data rules:
         # Never ask a language model to manufacture bank-specific numbers.
         # Deterministic projections supersede narrative/qualitative model rows.
         article["impact_table"] = stress_rows
+    elif not topic.get("scenario_assessment"):
+        article = validate_regular_projections(article)
     elif topic.get("scenario_assessment"):
         # No reported baseline: do not manufacture numeric estimates.
         directional = {
@@ -555,6 +579,15 @@ Strict financial data rules:
 
 
 def build_final_email(topic, article):
+    # Original executive presentation: projected ranges for standard articles;
+    # a separate stress presentation only for the geopolitical scenario.
+    is_scenario = bool(topic.get("scenario_assessment"))
+    table_title = ("Illustrative deposit and credit sensitivities — not forecasts"
+                   if is_scenario else "Projected impact on key metrics")
+    projected_header = "Illustrative value" if is_scenario else "Projected"
+    table_note = ("Conditional stress sensitivities, not forecasts or verified exposures."
+                  if is_scenario else
+                  "Doha Bank figures are based on reported results. Projected figures are model-based estimates intended to illustrate potential impact.")
     rows = ""
 
     for idx, r in enumerate(article.get("impact_table", [])):
@@ -738,17 +771,17 @@ def build_final_email(topic, article):
   </td></tr>
 
   <tr><td class="pad" style="padding:30px 44px 0 44px;">
-    {section_label("Illustrative deposit and credit sensitivities — not forecasts")}
+    {section_label(table_title)}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {LINE}; border-collapse:collapse;">
       <tr>
         <td style="padding:12px 16px; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Metric</td>
         <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Current</td>
-        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Illustrative stressed value</td>
+        <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">{projected_header}</td>
         <td style="padding:12px 16px; text-align:right; font-family:Arial,sans-serif; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:bold; color:{GREY}; border-bottom:2px solid {NAVY};">Change</td>
       </tr>
       {rows}
     </table>
-    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">Reported baselines and conditional outputs are explicitly labelled by row. Scenarios are illustrative sensitivities, not forecasts, probabilities, confirmed exposures or regulatory stress-test results.</p>
+    <p style="margin:11px 2px 0 2px; font-family:Arial,sans-serif; font-size:11px; line-height:1.5; color:{MUTED};">{table_note}</p>
   </td></tr>
 
   <tr><td class="pad" style="padding:32px 44px 0 44px;">
@@ -810,6 +843,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
 
