@@ -399,7 +399,7 @@ def public_data_stress_rows(metrics):
 
 def validate_regular_projections(article):
     """Keep only numeric, explained estimates; never turn commentary into a forecast."""
-    numeric = re.compile(r"(?:\d[\d,]*(?:\.\d+)?\s*(?:%|bp|bps|bn|m|million|billion|x)\b?|QAR\s*\d)", re.I)
+    numeric = re.compile(r"(?:QAR\s*\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s*(?:%|bps?|bn|m|million|billion|x)(?![A-Za-z]))", re.I)
     rows = []
     for row in article.get("impact_table", []):
         if not isinstance(row, dict):
