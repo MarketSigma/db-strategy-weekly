@@ -130,6 +130,9 @@ STRATEGIC_SEARCHES = [
     ("Global", 'Red Sea shipping disruption freight insurance trade finance'),
     ("Global", 'global oil LNG supply shock Qatar exports markets'),
     ("Global", 'US Federal Reserve interest rates dollar Gulf bank funding'),
+    ("Global", 'Federal Reserve Alberto Musalem interest rate hike November 2026 CNBC'),
+    ("Global", 'Federal Reserve FOMC officials rate hike inflation Reuters CNBC'),
+    ("Qatar", 'Qatar Central Bank QCB interest rate decision Federal Reserve'),
     ("Global", 'global sanctions banking correspondent payments trade finance'),
     ("Global", 'global financial market volatility emerging market funding liquidity'),
 ]
@@ -1212,6 +1215,41 @@ def build_selection_pool(news_items):
     return shortlisted
 
 
+def is_fed_qcb_rate_news(item):
+    """Identify actual monetary-policy coverage, not generic market-rate mentions."""
+    title = clean_text(item.get("title", "")).lower()
+    summary = clean_text(item.get("summary", "")).lower()
+    text = title + " " + summary
+    authorities = ("federal reserve", "fed ", "fomc", "qatar central bank", "qcb", "musalem", "powell")
+    policy = ("interest rate", "rate hike", "rate cut", "rate decision", "rates", "monetary policy", "inflation")
+    return any(x in text for x in authorities) and any(x in text for x in policy)
+
+
+def make_fed_topic(item):
+    return {
+        "source_url": item["link"],
+        "category": "Qatar Macro / Regulatory Development",
+        "why_it_matters": "Fed policy could influence QCB policy and Qatar banking-system pricing.",
+        "potential_doha_bank_angle": "Assess conditional lending yield, deposit costs, margin, liquidity and customer demand effects.",
+        "what_is_new": clean_text(item.get("title", "")),
+        "named_rival_or_actor": "Federal Reserve / Qatar Central Bank",
+        "target_client_or_market": "Qatar borrowers, depositors and bank treasury",
+        "revenue_pool": "Net interest income and funding costs",
+        "recommended_strategy_test": "Treasury and ALM to model QCB unchanged, half-step and full-step responses using verified rate decisions and actual repricing data.",
+        "transmission_channel_to_doha_bank": "Potential QCB policy transmission to asset yields, deposit pricing and net interest margin.",
+        "transmission_strength": "INDIRECT",
+        "monetary_policy_assessment": True,
+        "scenario_assessment": False,
+        "title": clean_text(item.get("title", "")),
+        "source_title": clean_text(item.get("title", "")),
+        "source_name": clean_text(item.get("source", "News source")),
+        "source_date": clean_text(item.get("source_date", "")) or TODAY,
+        "source_excerpt": article_excerpt(item.get("summary") or item.get("title")),
+        "geography": item.get("geography", "Global"),
+        "relevance_score": item.get("relevance_score", 0),
+    }
+
+
 def ai_select_topics(news_items, bank_name):
     if len(news_items) < 6:
         raise ValueError(
@@ -1257,7 +1295,7 @@ MANDATORY SELECTION RULES:
 3. Prefer Qatar-specific external developments when material, but never sacrifice materiality or diversity merely to fill a Qatar quota.
 4. There is NO required quota for competitor stories.
 5. There is NO required quota for GCC stories.
-6. Select AT LEAST ONE verified Global development among the six, provided an eligible global candidate exists. PRIORITIZE Reuters coverage of US/Israel decisions about potential renewed strikes on Iran, US-Iran war risks, Trump foreign policy and US election developments. Prefer strategic escalation signals over incident-specific tanker or vessel stories. Do not treat hypothetical strikes as confirmed.
+6. When a recent credible Fed or QCB policy development exists, reserve one of the six articles for it. Distinguish an official decision from a policymaker speech or market expectation. Select AT LEAST ONE verified Global development among the six, provided an eligible global candidate exists. PRIORITIZE Reuters coverage of US/Israel decisions about potential renewed strikes on Iran, US-Iran war risks, Trump foreign policy and US election developments. Prefer strategic escalation signals over incident-specific tanker or vessel stories. Do not treat hypothetical strikes as confirmed.
 7. For a US-Iran escalation story, frame the article as a FORWARD-LOOKING SCENARIO: What if the US and/or Israel strike Iran again? Evaluate limited strikes, sustained escalation and wider regional conflict. Assess Qatar LNG exports, shipping, energy revenue, sovereign finances, corporate borrowers, deposits, funding/liquidity, treasury and Doha Bank watchpoints. The triggering Reuters article supplies VERIFIED CONTEXT, not proof that a hypothetical war has occurred. Do not center the article on a tanker incident. Separate observed facts, conditional assumptions and potential bank impacts.
 8. A GCC development may replace a Qatar development only when its Doha Bank transmission is stronger.
 9. Prefer developments from the last 7 days.
@@ -1501,6 +1539,35 @@ Candidate intelligence:
             replace_idx = min(range(len(valid)), key=lambda i: valid[i].get("relevance_score", 0))
             valid[replace_idx] = replacement
             print(f"GLOBAL SLOT ENFORCED | {replacement['title']}")
+
+    # Deterministic monetary-policy slot: a verified discovered article, never synthetic.
+    # Avoid replacing the only global story when the Fed item is Qatar-specific.
+    if not any(t.get("monetary_policy_assessment") or is_fed_qcb_rate_news(t) for t in valid):
+        fed_candidates = [x for x in selection_pool
+            if is_fed_qcb_rate_news(x) and has_minimum_transmission_signal(x)
+            and not is_doha_bank_self_news(x) and clean_text(x.get("link", ""))]
+        fed_candidates.sort(key=lambda x: (
+            int("federal reserve" in clean_text(x.get("title", "")).lower()
+                or "qatar central bank" in clean_text(x.get("title", "")).lower()),
+            x.get("relevance_score", 0), x.get("source_priority", 0)), reverse=True)
+        if fed_candidates:
+            fed = make_fed_topic(fed_candidates[0])
+            replaceable = [i for i, t in enumerate(valid)
+                if t.get("geography") != "Global" or
+                sum(v.get("geography") == "Global" for v in valid) > 1]
+            if not replaceable and fed.get("geography") == "Global":
+                replaceable = list(range(len(valid)))
+            if replaceable:
+                replace_idx = min(replaceable, key=lambda i: valid[i].get("relevance_score", 0))
+                valid[replace_idx] = fed
+                print(f"FED/QCB SLOT ENFORCED | {fed['title']}")
+        else:
+            print("FED/QCB SLOT | No eligible discovered monetary-policy story; no article fabricated.")
+
+    for topic in valid:
+        if is_fed_qcb_rate_news(topic):
+            topic["monetary_policy_assessment"] = True
+            topic["scenario_assessment"] = False
 
     for i, topic in enumerate(valid, 1):
         topic["topic_id"] = str(i)
@@ -1760,6 +1827,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
 
