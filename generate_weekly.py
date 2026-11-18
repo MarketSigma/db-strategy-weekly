@@ -428,6 +428,12 @@ The risk list must identify the most material Qatar/Doha Bank transmission chann
 Use the reproducible three-scenario public-data sensitivity table supplied below. Do not generate or quote numerical wholesale funding-cost shocks, repricing percentages, funding proxy amounts, or combined earnings-at-risk estimates. Discuss wholesale funding qualitatively only: actual refinancing and repricing maturities are not available in public disclosures. Do not present scenario severity as event likelihood. Distinguish starting balances, ending balances, and illustrative incremental credit impairment sensitivities. These are conditional stress sensitivities, NOT forecasts, likelihood estimates, or bank exposure estimates. Do not imply that deposit outflows are a P&L loss. State assumptions briefly in the table row itself. Do not add a separate methodology or public-data stress-sensitivities paragraph. Distinguish verified news from modeled outcomes.
 """ if topic.get("scenario_assessment") else ""
 
+    monetary_guidance = """
+SPECIAL GUIDANCE — FED / QCB MONETARY POLICY:
+Lead with what the cited Fed or QCB source actually reports. A Fed official's remarks are not an FOMC decision; do not assert a hike occurred unless verified. Qatar Central Bank may choose to match a hypothetical Fed increase, implement a smaller adjustment (for example half the basis-point increase), or hold its rates; these are conditional possibilities, not announced QCB decisions or guaranteed proportional moves. Clearly distinguish policy rates, benchmark movements and bank customer repricing.
+If the source discusses potential Fed hikes, show explicit numerical CONDITIONAL POLICY-RATE PATHS where supported: e.g. for a hypothetical +25 bp Fed hike, QCB +0 bp, +12.5 bp (illustrative half-step, not necessarily an operational rate increment), or +25 bp. For a hypothetical +50 bp hike, use +0/+25/+50 bp. Do not invent current Fed/QCB rate levels or Doha Bank NII projections. If verified baseline bank metrics and actual repricing assumptions are insufficient, do not fabricate bank earnings or balance-sheet projections. Explain that net effect depends on asset/liability repricing speeds, CASA and deposit beta, funding mix and borrower demand. Use the impact_table for supported numeric projected ranges only; otherwise avoid unsupported bank-specific figures. Separate verified news, assumptions, and conditional implications. Treasury/ALM should validate actual rate sensitivity and QCB announcements before management decisions.
+""" if topic.get("monetary_policy_assessment") else ""
+
     prompt = f"""
 You are DB Strategy AI Analyst.
 
@@ -519,6 +525,7 @@ strategic_options:
 - Do not assign personal names.
 
 {scenario_guidance}
+{monetary_guidance}
 Selected topic:
 {json.dumps(topic, ensure_ascii=False)}
 Source text rules:
@@ -843,6 +850,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
 
     
 
